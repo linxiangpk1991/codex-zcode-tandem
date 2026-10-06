@@ -1,0 +1,23 @@
+{
+  "action": "run",
+  "cwd": "C:/path/to/your-project",
+  "model": "GLM-5.3",
+  "thought": "max",
+  "mode": "build",
+  "timeoutSeconds": 5400,
+  "idleSeconds": 0,
+  "maxOutputBytes": 2000000,
+  "progressFile": "C:/path/to/codex-zcode-tandem/work/example-progress.json",
+  "resultFile": "C:/path/to/codex-zcode-tandem/work/example-result.json",
+  "prompts": [
+    {
+      "label": "inspect",
+      "text": "读取适用的 AGENTS.md 和相关入口，说明模块责任与实际验证方式。本阶段只读，不修改、不运行命令、不访问凭据、不创建子代理。",
+      "requiredTools": ["Read"]
+    }
+  ],
+  "allowToolKinds": ["read", "search"],
+  "disallowedTools": ["Bash", "Edit", "Write", "MultiEdit", "ApplyPatch", "Task", "Agent"],
+  "nativeWorkflow": false,
+  "waitForBackground": false
+}

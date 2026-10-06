@@ -1,0 +1,29 @@
+# Codex ZCode Tandem
+
+> A Windows Codex skill that coordinates native ZCode over ACP. Codex scopes and reviews the work; ZCode implements, tests, or reviews with the user's own Coding Plan.
+
+Independent community project. Public skill name: codex-zcode-tandem.
+Supported baseline: Windows, Node 24.19.0, zcode-acp-server 0.65.1, ZCode Desktop 3.14.4.7912 / CLI 0.16.9.
+Models: GLM-5.3 and GLM-5.3-Flash, default thought=max.
+License: MIT for this project's code and documentation; upstream products retain their own terms.
+
+## Start
+
+- [English overview](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.md)
+- [中文介绍](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.zh-CN.md)
+- [Skill instructions](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SKILL.md)
+- [Install and diagnose](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.md)
+- [安装与排障](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.zh-CN.md)
+
+## Understand the value and boundaries
+
+- [Practical examples](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/examples.md)
+- [FAQ](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/faq.md)
+- [Live control semantics](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/live-control.md)
+- [Native workflows and recovery](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/native-workflows.md)
+- [Task brief templates](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/worker-prompts.md)
+- [Architecture](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/project-map.md)
+- [Verification and known limits](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/acceptance.md)
+- [Security](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SECURITY.md)
+
+Each guide has a linked Simplified Chinese version. Read actual source and version-specific evidence before making capability claims. Queued steering is not mid-tool injection; tool controls are not an OS sandbox; completion is not business acceptance. This index is a reading aid, not an authorization grant or a search-ranking guarantee.

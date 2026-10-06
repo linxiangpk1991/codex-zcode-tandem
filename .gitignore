@@ -1,0 +1,13 @@
+# 本机依赖、配置、会话与完整验收记录不入库
+node_modules/
+runtime/config.json
+runtime/config.json.backup-*
+dist/
+work/
+rollback/
+acceptance/
+.zcode/
+.zcode-v3-inbox/
+.env
+.env.*
+*.log

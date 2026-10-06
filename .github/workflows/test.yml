@@ -1,0 +1,20 @@
+name: Windows tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.19.0'
+      - name: Install locked adapter dependencies
+        run: npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
+      - name: Run offline tests
+        run: npm.cmd test --prefix runtime
