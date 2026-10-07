@@ -466,10 +466,13 @@ test('control submitted before closing is explicitly rejected when it never reac
   const run = beginRun({ raw: { prompts: ['p1'] } });
   run.fake.conn.prompt = async () => {
     writeControl(run.dir, run.invocationId, 'steer', { message: 'too late' });
+    const progress = readJsonFile(run.progressPath);
+    writeJsonAtomic(join(progress.controlInbox, 'foreign-at-close.json'), { id: 'foreign-at-close', invocationId: 'other' });
     return { stopReason: 'end_turn' };
   };
   const { report } = await run.task;
   assert.equal(report.controls.find(c => c.action === 'steer').state, 'rejected');
+  assert.equal(report.controls.find(c => c.id === 'skipped:foreign-at-close').state, 'rejected');
 });
 
 test('foreign duplicate id cannot overwrite the lifecycle of a queued steer', async () => {

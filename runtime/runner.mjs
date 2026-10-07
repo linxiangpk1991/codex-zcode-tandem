@@ -768,7 +768,9 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (st.pausePromise) await st.pausePromise;
     if (st.pauseError) { status = 'needs_attention'; error = st.pauseError; }
     clearIntervalFn(pollTimer);
-    for (const cmd of inbox.poll().commands) tracker.recordControl(cmd.id, cmd.action, 'rejected', 'invocation closing before acceptance', cmd.createdAt);
+    const closingInbox = inbox.poll();
+    for (const item of closingInbox.skipped) if (item.id) tracker.recordControl(`skipped:${item.id}`, 'control', 'rejected', `skipped at close: ${item.reason}`);
+    for (const cmd of closingInbox.commands) tracker.recordControl(cmd.id, cmd.action, 'rejected', 'invocation closing before acceptance', cmd.createdAt);
     clearIntervalFn(heartbeatTimer);
     clearTimeoutFn(deadlineTimer);
     clearTimeoutFn(policyTimer);
