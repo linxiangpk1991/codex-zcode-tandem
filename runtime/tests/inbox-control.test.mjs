@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeJsonAtomic, readJsonFile } from '../jsonio.mjs';
 import { ClientInbox, validateCommand, validateControlPayload } from '../inbox.mjs';
-import { buildControlCommand, compactStatus, validateControlContext, isProcessAlive } from '../control.mjs';
+import { buildControlCommand, compactStatus, validateControlContext, isProcessAlive, validateRuntimeOwner } from '../control.mjs';
 
 const CONTROL = join(import.meta.dirname, '..', 'control.mjs');
 
@@ -106,6 +106,7 @@ test('atomic writes never expose a partial document (safe concurrency)', async (
 function liveProgress(overrides = {}) {
   return {
     version: 3,
+    runtimeRoot: join(import.meta.dirname, '..', '..'),
     invocationId,
     status: 'running',
     updatedAt: new Date().toISOString(),
@@ -118,6 +119,13 @@ function liveProgress(overrides = {}) {
     ...overrides,
   };
 }
+
+test('new control entry refuses legacy or foreign runtime owners', () => {
+  const own = join(import.meta.dirname, '..', '..');
+  assert.equal(validateRuntimeOwner({}, own).ok, false);
+  assert.equal(validateRuntimeOwner({ runtimeRoot: tempInbox() }, own).ok, false);
+  assert.equal(validateRuntimeOwner({ runtimeRoot: own }, own).ok, true);
+});
 
 test('control context validation: dead owner, stale state, missing prerequisites', () => {
   const dead = validateControlContext(liveProgress({ controller: { pid: 999999999 } }), 'steer', { message: 'x' });

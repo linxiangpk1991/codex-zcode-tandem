@@ -13,11 +13,25 @@
     {
       "label": "inspect",
       "text": "读取适用的 AGENTS.md 和相关入口，说明模块责任与实际验证方式。本阶段只读，不修改、不运行命令、不访问凭据、不创建子代理。",
-      "requiredTools": ["Read"]
+      "requiredTools": [
+        "Read"
+      ]
     }
   ],
-  "allowToolKinds": ["read", "search"],
-  "disallowedTools": ["Bash", "Edit", "Write", "MultiEdit", "ApplyPatch", "Task", "Agent"],
+  "allowToolKinds": [
+    "read",
+    "search"
+  ],
+  "disallowedTools": [
+    "Bash",
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "ApplyPatch",
+    "Task",
+    "Agent"
+  ],
   "nativeWorkflow": false,
-  "waitForBackground": false
+  "waitForBackground": false,
+  "summaryFile": "C:/path/to/codex-zcode-tandem/work/example-summary.json"
 }

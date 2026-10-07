@@ -1,6 +1,8 @@
 // REQUEST.json parsing and validation. V2 request fields keep working; V3
 // adds the probe/workflow actions and the idle control window. Everything is
 // rejected here, BEFORE any process is spawned.
+import { normalizeWorkspace } from './workspace-policy.mjs';
+import { normalizeVerification } from './verification.mjs';
 const ACTIONS = ['run', 'quota', 'probe', 'workflow-resume', 'workflow-status', 'workflow-events'];
 
 function fail(field, why) {
@@ -118,7 +120,7 @@ export function normalizeRequest(config, raw) {
     (typeof raw.sessionId !== 'string' || !raw.sessionId.trim())) {
     fail('sessionId', 'must be a non-empty string');
   }
-  for (const field of ['progressFile', 'resultFile']) {
+  for (const field of ['progressFile', 'resultFile', 'summaryFile']) {
     if (raw[field] !== undefined && (typeof raw[field] !== 'string' || !raw[field].trim())) {
       fail(field, 'must be a non-empty string');
     }
@@ -147,6 +149,9 @@ export function normalizeRequest(config, raw) {
     maxOutputBytes,
     idleSeconds,
     prompts: promptItems,
+    workspace: normalizeWorkspace(raw.workspace, raw.cwd),
+    verification: normalizeVerification(raw.verification),
+    quotaSnapshots: asBool(raw.quotaSnapshots, 'quotaSnapshots'),
     nativeWorkflow: asBool(raw.nativeWorkflow, 'nativeWorkflow') || action.startsWith('workflow-'),
     waitForBackground: asBool(raw.waitForBackground, 'waitForBackground'),
     allowToolKinds: raw.allowToolKinds ?? [],

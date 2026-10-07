@@ -33,3 +33,9 @@ Git 仅保存源码、锁文件、示例和脱敏摘要。work、acceptance、ro
 ## 公开版与个人版
 
 公开版包名为 codex-zcode-tandem-runtime，技能名为 codex-zcode-tandem。另行安装的 zcode-native 有独立源码和入口，两者不自动同步、迁移路径或转移账号。需要共享的改进应明确审查后移植，不能把本机配置、执行日志或私人仓库历史带入公开版。
+
+## 1.1 的执行证据
+
+workspace-policy 在权限回调中检查文件归属和完整命令；verification 与 scripts/check-evidence 绑定声明的测试输入、读取已有执行器回执，不负责执行测试；reporting 提供启动诊断和紧凑摘要。模型状态与测试验收分别报告。
+
+scope-observer 在日志压缩前保留有界的权限相关输入，将未知范围证据与确认的策略违规分别记录。

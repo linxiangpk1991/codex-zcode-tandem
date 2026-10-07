@@ -14,7 +14,7 @@
 // mutating action validates the live owner and state, then writes ONE atomic
 // command file into the invocation-bound inbox and prints its command id.
 import { existsSync, readdirSync, realpathSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { readJsonFile, writeJsonAtomic } from './jsonio.mjs';
@@ -26,6 +26,16 @@ export const LIVE_STATES = new Set(['starting', 'initializing', 'running', 'wait
 export function isProcessAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try { process.kill(pid, 0); return true; } catch (e) { return e?.code === 'EPERM'; }
+}
+
+export function validateRuntimeOwner(progress, root) {
+  if (!progress?.runtimeRoot) return { ok: false, why: 'Legacy progress has no runtime binding; use the original runtime/control.mjs for this invocation' };
+  try {
+    if (realpathSync(progress.runtimeRoot).toLowerCase() !== realpathSync(root).toLowerCase()) {
+      return { ok: false, why: 'Control runtime differs from invocation owner; use its original runtime/control.mjs' };
+    }
+  } catch { return { ok: false, why: 'Cannot resolve the invocation runtime owner' }; }
+  return { ok: true };
 }
 
 /**
@@ -150,6 +160,8 @@ async function main() {
     console.log(JSON.stringify(compactStatus(progress), null, 2));
     return 0;
   }
+  const owner = validateRuntimeOwner(progress, resolve(dirname(fileURLToPath(import.meta.url)), '..'));
+  if (!owner.ok) throw new Error(owner.why);
   const payload = document ? (document.payload ?? Object.fromEntries(
     Object.entries(document).filter(([key]) => key !== 'action'))) : payloadFromArgs(action, args);
   const verdict = validateControlContext(progress, action, payload);
@@ -164,7 +176,11 @@ async function main() {
   const command = buildControlCommand({ progress, action, payload, seq });
   const file = `${progress.controlInbox}/${command.id}.json`;
   writeJsonAtomic(file, command);
-  console.log(JSON.stringify({ ok: true, commandId: command.id, action, inboxFile: file }, null, 2));
+  const after = readJsonFile(progressPath);
+  const live = after?.invocationId === progress.invocationId && LIVE_STATES.has(after?.status);
+  console.log(JSON.stringify({ ok: true, commandId: command.id, action, inboxFile: file,
+    delivery: 'submitted', acknowledgement: 'read progress controls for accepted/started/completed',
+    warning: live ? null : 'invocation ended during submission; read progress before retrying' }, null, 2));
   return 0;
 }
 

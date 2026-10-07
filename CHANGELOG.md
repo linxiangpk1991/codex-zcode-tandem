@@ -1,5 +1,15 @@
 # Changelog / 更新记录
 
+## 1.1.0 — 2026-10-07
+
+File tools now check ownership and preserved paths; Bash needs an exact reviewed command. Test receipts bind declared source inputs, argv, cwd and the real exit code. Steering records queue and execution time separately. Startup fallback is visible, Python children use UTF-8, and optional quota snapshots are separate from task billing. A compact summary keeps model completion separate from verification. Control commands are bound to the invocation's runtime directory. Deadline cancellation retains timeout status.
+
+文件工具开始检查负责与保留路径，Bash 需要完整已审命令。测试回执绑定声明的源码输入、参数、目录和真实退出码。纠偏区分排队与执行时间，启动回退会明确警告，Python 子进程使用 UTF-8。可选额度快照不等于任务账单；摘要分别报告模型完成和验证结果。控制命令绑定任务的运行目录，超时取消保留 timeout 状态。
+
+**Migration / 迁移：** existing edit/execute requests need workspace; keep using the original control entry for older running tasks. 旧的编辑/执行请求须补 workspace，仍在运行的旧任务继续使用原控制入口。See [English](references/execution-safety.md) / [中文](references/execution-safety.zh-CN.md).
+
+Permission callbacks and completed tool observations are not an OS sandbox. 权限回调及事后工具观察都不是操作系统沙箱。
+
 ## 1.0.0 — 2026-10-07
 
 ### English

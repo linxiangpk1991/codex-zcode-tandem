@@ -5,7 +5,7 @@ description: Coordinate Codex and native ZCode over ACP on Windows. Use when the
 
 # Codex × ZCode · Tandem
 
-Use the native ZCode engine and the user's own Coding Plan. Preserve their chosen Codex model and reasoning setting. Default to GLM-5.3 for core work/review and GLM-5.3-Flash for small bounded tasks, both at thought=max. Do not silently substitute another engine or paid API.
+Use the native ZCode engine and the user's own Coding Plan. Preserve their chosen Codex model and reasoning setting. Default to GLM-5.3 with thought=max; GLM-5.3-Flash is an explicit opt-in. Local models and thoughtLevels allowlists may narrow the supported choices. Do not silently substitute another engine or paid API.
 
 This file's directory is the source root. The installed pointer records its actual location and Node executable. Resolve runtime/ and references/ from this source root, not from the user's project. Never borrow another person's paths or account.
 
@@ -19,6 +19,8 @@ ZCode does not inherit this chat. Send the necessary original requirement and ap
 
 The skill does not authorize publication, production writes, credential access, or unrelated delegation. Keep the project's existing effect and authorization boundaries.
 
+Before editing, read [workspace and test evidence](references/execution-safety.md). Requests granting edit/execute must declare workspace.ownedPaths, preservedPaths and complete reviewed commands; otherwise file writes and Bash are denied. Codex prepares isolated baselines. ZCode must not stash/reset/clean shared work or switch/remove worktrees. Callback guards are not an OS sandbox and may not run for resumed/background native work.
+
 ## Execute and follow progress
 
 Use absolute cwd, resultFile and progressFile. Set model, thought=max, mode=build, allowToolKinds and timeoutSeconds explicitly. The default deadline is 5400 seconds, maximum 7200. The client enforces the deadline and cleans up its owned process tree. Use the host's bounded runner when required or already provided; no private Harness installation is a dependency.
@@ -28,6 +30,8 @@ action=probe checks the connection and effective configuration without model inf
 Read [live control](references/live-control.md) before querying, asking, steering, answering or pausing. New prompts run serially at safe boundaries. Pause does not undo writes. Read back unknown outcomes before continuing.
 
 Do not switch to a paid provider on quota failure. Machine-wide auto-resume is disabled. Scheduling follow-ups requires a user request.
+
+Use coherent plan/implementation/test/review phases so steering can run at meaningful boundaries. Track submitted/accepted/started/completed times; queued does not mean started. Use the existing test runner, bind declared inputs before execution, and import its real receipt. Never use a pipeline's final echo as the test exit code. summaryFile contains verification separately from model completion; no checks means not_run. previewTruncated differs from evidence truncation; bytesSeen=null means unmeasured. Optional quotaSnapshots are shared-account observations, not task billing.
 
 ## Native workflows, when useful
 
@@ -47,4 +51,4 @@ After interruption, retain the original session/cwd and continue only unfinished
 
 Report changed behavior/files, actual commands and results, session/run identifiers and remaining limitations. A configured 90-minute deadline is not an endurance-test result. See [verification](references/acceptance.md).
 
-Stop active invocations before upgrading. Existing changed entries need setup --replace, which backs up the old entry. Do not let old clients take over active newer sessions. The public skill codex-zcode-tandem and a private zcode-native installation are separate; never overwrite one to update the other.
+Wait for active invocations to finish before replacing their runtime files. Prepare candidates in separate version directories; never stop another owner's task. Keep old invocations on their original runtime/control entry. Existing changed entries need setup --replace, which backs up the old entry. The public skill codex-zcode-tandem and a private zcode-native installation are separate; never overwrite one to update the other.

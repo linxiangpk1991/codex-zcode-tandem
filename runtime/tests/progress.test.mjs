@@ -115,3 +115,22 @@ test('oversized events are compacted, not dropped silently', () => {
   assert.ok(tracker.state.lastEvent.truncated);
   assert.ok(tracker.state.lastEvent.preview.length <= config.compactByteLimit);
 });
+
+test('control timestamps preserve queue and execution duration separately', () => {
+  const tracker = makeTracker();
+  let clock = Date.parse('2026-01-01T00:00:00Z');
+  tracker.now = () => new Date(clock);
+  tracker.recordControl('timed', 'steer', 'accepted', null, '2025-12-31T23:59:58Z');
+  tracker.recordControl('timed', 'steer', 'queued');
+  clock += 310_000;
+  assert.equal(tracker.snapshot().controls.queue[0].queueWarning, 'waiting_for_foreground_boundary');
+  tracker.recordControl('timed', 'steer', 'started');
+  clock += 20_000;
+  const entry = tracker.recordControl('timed', 'steer', 'completed');
+  assert.equal(entry.queueDurationMs, 312_000);
+  assert.equal(entry.executionDurationMs, 20_000);
+  assert.ok(entry.submittedAt && entry.acceptedAt && entry.startedAt && entry.completedAt);
+  assert.deepEqual(entry.transitions.map(t => t.state), ['accepted', 'queued', 'started', 'completed']);
+  assert.equal(tracker.state.activity.bytesSeen, null);
+  assert.equal(tracker.state.deadline.startedAt, tracker.state.startedAt);
+});

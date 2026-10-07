@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { buildReportState, completeReport, captureQuota } from './reporting.mjs';
+import { ScopeObserver } from './scope-observer.mjs';
 import { buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from './config.mjs';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { ProgressTracker } from './progress.mjs';
@@ -84,8 +86,10 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   const tracker = new ProgressTracker({
     invocationId, cwd, request, config, progressPath,
     controllerPid: process.pid, inboxPath: inboxDir,
+    runtimeRoot: resolve(MODULE_DIR, '..'),
   });
 
+  const scopeObserver = new ScopeObserver(request, config);
   const st = {
     invocationId, tracker, request, config,
     sessionId: null, acpVersion: null, agentInfo: null,
@@ -146,7 +150,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     console.error(`[zcode-v3] ${message}`);
   }
 
-  function terminal() { return st.finalized || st.pausing; }
+  function terminal() { return st.finalized || st.pausing || st.interrupting; }
 
   // ---------- bridge events ----------
   function handleBridgeEvent(message) {
@@ -256,6 +260,10 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.flagEvidence('toolsTruncated');
     }
     const name = nativeToolName(merged);
+    const observation = scopeObserver.observe(merged, update.rawInput);
+    report.workspaceObservations = scopeObserver.records;
+    if (scopeObserver.truncated) tracker.flagEvidence('workspaceObservationsTruncated');
+    if (observation && observation.allowed !== true) { st.needsAttention = true; warn(`Tool scope requires attention: ${observation.reason}`); }
     if (['CreateWorkflow', 'AmendWorkflow'].includes(name) && merged.rawInput
       && !st.workflowObserved.has(id)) {
       st.workflowObserved.add(id);
@@ -353,6 +361,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       if (st.finalized) return { outcome: { outcome: 'cancelled' } };
       tracker.setPendingInput(null);
       if (answer.kind === 'answer') {
+        tracker.recordControl(answer.commandId, 'answer', 'started');
         tracker.recordControl(answer.commandId, 'answer', 'completed',
           `answered ${pi.interactionId} with ${answer.optionId}`);
         return { outcome: { outcome: 'selected', optionId: answer.optionId } };
@@ -367,8 +376,9 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       return { outcome: { outcome: 'cancelled' } }; // paused/cancelled
     }
     const meta = st.trackedToolCalls.get(toolCallId);
+    const rawInput = p.toolCall?.rawInput ?? scopeObserver.input(toolCallId) ?? meta?.rawInput;
     const decision = decideToolPermission({
-      request, nativeName: cls.nativeName, acpKind: meta?.kind, rawInput: p.toolCall?.rawInput,
+      request, nativeName: cls.nativeName, acpKind: meta?.kind, rawInput,
     });
     if (cls.nativeName === 'ResumeWorkflowRun' && p.toolCall?.rawInput?.run_id === tracker.state.workflow.predecessorRunId) {
       decision.allowed = false; decision.reason = 'superseded predecessor cannot be resumed in this invocation';
@@ -379,10 +389,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.flagEvidence('permissionsTruncated');
     }
     st.permissions.push({
+      toolCallId,
       nativeName: cls.nativeName, kind: meta?.kind ?? null, allowed: decision.allowed,
       reason: decision.reason, binding: decision.binding, title: p.toolCall?.title ?? null,
       optionId: option?.optionId ?? null, granted: decision.allowed && !!option,
-      rawInput: compact(p.toolCall?.rawInput),
+      rawInput: compact(rawInput),
     });
     if (decision.allowed && option) {
       const runId = p.toolCall?.rawInput?.run_id;
@@ -428,10 +439,10 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (st.finalized) return;
     const { commands, skipped } = inbox.poll();
     for (const s of skipped) {
-      if (s.id) tracker.recordControl(s.id, 'control', 'rejected', `skipped: ${s.reason}`);
+      if (s.id) tracker.recordControl(`skipped:${s.id}`, 'control', 'rejected', `skipped: ${s.reason}`);
     }
     for (const cmd of commands) {
-      tracker.recordControl(cmd.id, cmd.action, 'accepted');
+      tracker.recordControl(cmd.id, cmd.action, 'accepted', null, cmd.createdAt);
       try {
         dispatchControl(cmd);
       } catch (e) {
@@ -455,7 +466,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
         break;
       }
       case 'pause': {
-        tracker.recordControl(cmd.id, 'pause', 'accepted', 'pause in progress');
+        tracker.recordControl(cmd.id, 'pause', 'started', 'pause in progress');
         st.pauseCommandId = cmd.id;
         beginPause(cmd.payload ?? {});
         break;
@@ -484,6 +495,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
             `run ${payload.runId ?? '(missing)'} is not bound to this invocation`);
           break;
         }
+        tracker.recordControl(cmd.id, cmd.action, 'started');
         void transport.ipcCall(cmd.action, payload)
           .then(result => {
             const text = JSON.stringify(result);
@@ -570,7 +582,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     }
     const entry = {
       label, stopReason: result.stopReason ?? null, chars: result.chars ?? text.length,
-      preview: text.slice(0, 2000), truncated: text.length > 2000,
+        preview: text.slice(0, 2000), previewTruncated: text.length > 2000, truncated: text.length > 2000,
     };
     tracker.addTurn(entry);
     report.turns.push(entry);
@@ -581,10 +593,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   }
 
   async function drainSteers() {
-    while (st.steers.length > 0 && !st.pausing && !st.finalized && !st.needsAttention) {
+    while (st.steers.length > 0 && !terminal() && !st.needsAttention) {
       const steer = st.steers.shift();
       const label = `steer:${steer.id.slice(-8)}`;
       tracker.setPhase(tracker.state.phase.index, label);
+      tracker.recordControl(steer.id, steer.action, 'started');
       try {
         const result = await runPromptTurn({ label, text: steer.text });
         recordTurn(label, result);
@@ -706,31 +719,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
   // ---------- result persistence ----------
   function buildReport() {
-    report.response = st.response;
-    report.needsAttention = st.needsAttention;
-    report.workflow = tracker.state.workflow;
-    report.sessionId = st.sessionId;
-    report.acpVersion = st.acpVersion;
-    report.agentInfo = st.agentInfo;
-    report.effectivePolicy = st.policy;
-    report.bridgeVersion = st.acpVersion;
-    report.tools = [...st.tools.values()];
-    report.permissions = st.permissions;
-    report.config = st.configOptions;
-    report.backgroundTasks = [...st.backgroundTasks.values()];
-    report.backgroundNotificationFinished = st.notificationState === 'completed';
-    report.workflowRunIds = tracker.state.workflowRunIds;
-    report.pendingInput = tracker.state.pendingInput;
-    report.controls = tracker.state.controls.history;
-    report.replayedHistory = { ...tracker.state.replay };
-    report.evidence = { ...tracker.state.evidence };
-    report.activity = { ...tracker.state.activity, eventsSeen: tracker.state.activity.eventsSeen };
-    report.warnings = st.warnings;
-    report.quota = st.quota;
-    report.nativeCliVersion = st.nativeCliVersion;
-    report.progressFile = progressPath;
-    report.controlInbox = inboxDir;
-    return report;
+    return buildReportState(report, st, tracker, progressPath, inboxDir);
   }
 
   function writeResultEarly() {
@@ -773,11 +762,13 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
   async function finish(status, { error = null, exitCode = null } = {}) {
     st.finalized = true;
+    tracker.setStatus('closing');
     st.expectedBridgeExit = true;
     if (st.pauseTimer) clearTimeoutFn(st.pauseTimer);
     if (st.pausePromise) await st.pausePromise;
     if (st.pauseError) { status = 'needs_attention'; error = st.pauseError; }
     clearIntervalFn(pollTimer);
+    for (const cmd of inbox.poll().commands) tracker.recordControl(cmd.id, cmd.action, 'rejected', 'invocation closing before acceptance', cmd.createdAt);
     clearIntervalFn(heartbeatTimer);
     clearTimeoutFn(deadlineTimer);
     clearTimeoutFn(policyTimer);
@@ -797,6 +788,9 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     report.error = error ? redact(error) : null;
     report.finishedAt = new Date().toISOString();
     report.diagnostics = transport ? redact(transport.stderr()) : null;
+    if (request.quotaSnapshots && transport && status === 'completed') {
+      report.quotaSnapshots.after = await captureQuota(transport.conn);
+    }
     buildReport();
     if (st.activeTurn) report.interruptedTurn = { label: st.activeTurn.label,
       chars: st.activeTurn.chars, preview: st.activeTurn.text.slice(-4000), incomplete: true };
@@ -812,6 +806,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.setError(report.error);
     }
     try { rmSync(xdgHome, { recursive: true, force: true }); } catch { /* best effort */ }
+    completeReport(report, request, paths);
     if (resultPath) writeJsonAtomic(resultPath, report);
     tracker.write('final');
     const code = exitCode ?? exitCodeOf(status);
@@ -830,6 +825,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   async function interrupt(reason, error = null) {
     if (st.finalized || st.interrupting) return;
     st.interrupting = true;
+    st.interruptReason = reason;
     if (st.sessionId && transport) {
       Promise.resolve(transport.conn.cancel({ sessionId: st.sessionId })).catch(() => {});
     }
@@ -858,11 +854,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
     const init = await transport.conn.initialize({
       protocolVersion: 1,
-      clientInfo: { name: 'codex-zcode-native-v3', version: '3.0.0' },
+      clientInfo: { name: 'codex-zcode-native-v3', version: '3.2.0' },
       clientCapabilities: {}, // no elicitation: all interactions arrive as request_permission
     });
     st.acpVersion = init?.agentInfo?.version ?? null;
     st.agentInfo = init?.agentInfo ?? null;
+    if (request.quotaSnapshots) report.quotaSnapshots = { before: await captureQuota(transport.conn), after: null };
 
     if (request.action === 'quota') {
       tracker.setStatus('running');
@@ -963,11 +960,13 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (!st.needsAttention) {
       await idleWindow();
     }
-    const finalStatus = st.pausing ? 'paused' : st.needsAttention ? 'needs_attention' : 'completed';
+    const finalStatus = st.interruptReason ?? (st.pausing ? 'paused' : st.needsAttention ? 'needs_attention' : 'completed');
     exitCode = await finalize(finalStatus);
     return { exitCode, report };
   } catch (e) {
-    if (st.pausing) {
+    if (st.interruptReason) {
+      exitCode = await finalize(st.interruptReason, { error: e.message ?? String(e) });
+    } else if (st.pausing) {
       exitCode = await finalize('paused');
     } else {
       exitCode = await finalize('failed', { error: e.message ?? String(e) });

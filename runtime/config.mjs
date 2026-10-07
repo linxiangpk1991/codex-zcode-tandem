@@ -35,6 +35,7 @@ export const DEFAULTS = Object.freeze({
   minMaxOutputBytes: 4096,
   maxMaxOutputBytes: 16_000_000,
   heartbeatMs: 15_000,
+  queueWarningMs: 300_000,
   inboxPollMs: 1000, // client polls the control inbox at most every second
   maxIdleSeconds: 120,
   defaultIdleSeconds: 0,
@@ -88,11 +89,17 @@ export function buildConfig(overrides = {}, file = loadConfigFile()) {
     if (!CONFIG_KEYS.has(key)) throw new Error(`config has unsupported key: ${key}`);
   }
   const merged = { ...DEFAULTS, ...file, ...overrides };
-  for (const key of ['provider', 'models', 'defaultThought', 'thoughtLevels']) {
+  for (const key of ['provider', 'defaultThought']) {
     if (JSON.stringify(merged[key]) !== JSON.stringify(DEFAULTS[key])) {
       throw new Error(`config.${key} is a pinned native Coding Plan invariant`);
     }
   }
+  for (const key of ['models', 'thoughtLevels']) {
+    if (!Array.isArray(merged[key]) || !merged[key].length || merged[key].some(value => !DEFAULTS[key].includes(value))) {
+      throw new Error(`config.${key} violates the pinned native Coding Plan invariant: use a nonempty subset`);
+    }
+  }
+  if (!Number.isInteger(merged.queueWarningMs) || merged.queueWarningMs < 1000) throw new Error('queueWarningMs must be >= 1000');
   for (const key of ['zcodeBin', 'providerFile', 'provider', 'taskkillPath']) {
     if (typeof merged[key] !== 'string' || !merged[key].trim()) {
       throw new Error(`config.${key} must be a non-empty string`);
@@ -192,6 +199,8 @@ export function buildChildEnv(config, paths, request, xdgHome) {
   env.ZCODE_ACP_MODE = request.mode;
   env.ZCODE_ACP_QUOTA_AUTO_RESUME = '0'; // belt under the config file value
   env.ZCODE_ACP_DEBUG = '0';
+  env.PYTHONUTF8 = '1';
+  env.PYTHONIOENCODING = 'utf-8';
   env.XDG_CONFIG_HOME = xdgHome;
   env.CODEX_ZCODE_BINDINGS = JSON.stringify({
     approvedWorkflowSha256: request.approvedWorkflowSha256,

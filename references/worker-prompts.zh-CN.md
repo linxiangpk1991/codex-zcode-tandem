@@ -73,3 +73,9 @@
 提示放在 JSON 中，不插入 shell。明确绝对 cwd、resultFile、progressFile、model、thought=max、mode=build、工具范围和时限。两种模型均默认 max，降低强度需用户明确请求。长阶段可用 5400 秒，最大 7200 秒，外层执行器预留清理时间；见 README 启动命令。
 
 检查 status、stopReason、modelEffective、thoughtEffective、modeEffective、permissions、tools、turns 及真实文件差异，不能只读 response。阶段包每个要求回合都要完成 end_turn。超时后先读 turns，沿用原 sessionId，只续接未完成部分；不重放已经完成的实现或测试。长结果选择性读取。
+
+## 1.1 的任务边界
+
+请求 workspace 与任务责任保持一致：ownedPaths、preservedPaths 和已审阅的完整 commands。不要自行 stash/reset/clean、切换分支或删除 worktree；基线目录由总控提供。用已有执行器保留真实测试回执，执行与日志筛选分开，不能用最后一条 echo 的退出码交差。
+
+按需要拆成方案/兼容性、实现、测试和自审，让纠偏在阶段之间有机会执行。缓存改动要考虑已有热缓存，DOM 问题要区分真实渲染与错误 fixture，环境准备失败不能直接归因为产品缺陷。详见 [工作区与回执](execution-safety.zh-CN.md)。

@@ -76,3 +76,9 @@ If none are blocking, say so. Static review does not mean you ran the tests.
 Put prompts in JSON, not interpolated shell strings. Use absolute cwd/resultFile/progressFile, an explicit model, thought=max, mode=build, tool scope and deadline. The default deadline is 5400 seconds, maximum 7200; reserve cleanup time in any outer runner.
 
 Inspect status, stopReason, modelEffective, thoughtEffective, modeEffective, permissions, tools, turns, and the actual diff. Do not read only response. Every required phase must complete its end_turn. After a timeout, inspect turns and continue the unfinished portion with the original sessionId instead of replaying the entire task.
+
+## Request boundaries in 1.1
+
+Match workspace.ownedPaths, preservedPaths and complete reviewed commands to the task brief. Do not stash/reset/clean shared work, switch branches or remove worktrees; Codex supplies the baseline directory. Preserve the existing runner's real test receipt. Execute first, filter logs separately, and never use a trailing echo as the test exit code.
+
+Use coherent plan/compatibility, implementation, test and review phases so steering has a boundary. Cache changes should cover existing warm data; DOM claims may need real rendering; faulty fixtures and controller preparation errors are not product defects. See [workspace and receipts](execution-safety.md).

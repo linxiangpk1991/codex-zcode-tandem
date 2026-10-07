@@ -14,6 +14,8 @@ If you already use both tools and keep copying requirements and results between 
 
 ## What it helps with
 
+**New in 1.1:** file ownership and reviewed command grants, source-bound test receipts, separate queue/execution timing, visible startup fallback warnings, and a compact handoff. Existing edit/execute requests need a `workspace` declaration; read the [upgrade guide](references/execution-safety.md). Model completion and test acceptance are reported separately.
+
 - **A feature with clear boundaries.** Let ZCode implement and test one module while Codex keeps track of the broader requirement.
 - **A task that needs course corrections.** Inspect progress, ask what is blocking the work, or queue a changed requirement without starting the conversation over.
 - **A second opinion on a change.** Start a separate ZCode review session with the original requirement and actual candidate.

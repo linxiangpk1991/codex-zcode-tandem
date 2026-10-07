@@ -37,3 +37,9 @@ Changes intended for both variants should be explicitly reviewed and ported. Nev
 Keep the checkout because the skill points to it. Stop active tasks and inspect their effects before switching versions. Reinstall a retained checkout or restore an entry backup. Adapter rollback does not roll back the user's working files.
 
 Git includes source, lockfile, examples, bilingual docs and artwork. Local config, node_modules, work, acceptance, rollback, dist, native state and environment files are ignored. Logs may contain project material, so inspect and redact before sharing them.
+
+## Execution evidence in 1.1
+
+workspace-policy checks ownership and exact command grants at permission callbacks. verification and scripts/check-evidence bind declared test inputs and import existing runner receipts; they do not execute tests. reporting produces startup diagnostics and a compact handoff. Model status and test acceptance have separate fields.
+
+scope-observer keeps bounded policy-relevant inputs before log compaction and separates unknown scope evidence from confirmed policy violations.

@@ -12,6 +12,7 @@
 //                   session-exempted (allowSession would bypass the binding
 //                   checks on later calls).
 import { createHash } from 'node:crypto';
+import { workspaceDecision } from './workspace-policy.mjs';
 import { readWorkflowScript, canonicalWorkflowModel } from './workflow-observation.mjs';
 
 /** ACP kinds for well-known native tools (V2 parity). */
@@ -100,6 +101,7 @@ export function decideToolPermission({ request, nativeName, acpKind, rawInput })
     return { allowed: false, reason: 'unknown tool — denied', binding: null };
   }
   const allowed = (request.allowToolKinds ?? []).includes(kind);
+  if (allowed && (kind === 'edit' || kind === 'execute')) return workspaceDecision(request, nativeName, rawInput);
   return { allowed, reason: allowed ? `kind ${kind} allowed` : `kind ${kind} not allowed`, binding: null };
 }
 

@@ -9,11 +9,19 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'zcode-v3-config-test-'));
 }
 
+test('personal model and thought allowlists narrow supported choices without fallback', () => {
+  const config = buildConfig({ models: ['GLM-5.3'], thoughtLevels: ['max'] }, {});
+  assert.deepEqual(config.models, ['GLM-5.3']);
+  assert.deepEqual(config.thoughtLevels, ['max']);
+  assert.throws(() => buildConfig({ models: [] }, {}), /nonempty subset/);
+  assert.throws(() => buildConfig({ defaultModel: 'GLM-5.3-Flash', models: ['GLM-5.3'] }, {}), /defaultModel/);
+});
+
 test('ambient model selection cannot leak into the native child', () => {
   const previous = process.env.ZCODE_MODEL;
   try {
     process.env.ZCODE_MODEL = 'unapproved-model';
-    const config = buildConfig();
+    const config = buildConfig({}, {});
     const env = buildChildEnv(config, resolvePaths(config), { mode: 'build' }, tempDir());
     assert.equal(env.ZCODE_MODEL, undefined);
   } finally {
@@ -23,7 +31,7 @@ test('ambient model selection cannot leak into the native child', () => {
 });
 
 test('defaults are coherent and absolute paths resolve', () => {
-  const config = buildConfig();
+  const config = buildConfig({}, {});
   assert.equal(config.defaultModel, 'GLM-5.3');
   assert.equal(config.defaultThought, 'max');
   assert.equal(config.defaultMode, 'build');
@@ -50,7 +58,7 @@ test('provider/models/thought pins cannot be overridden', () => {
   assert.throws(() => buildConfig({ provider: 'builtin:other-plan' }, {}), /pinned native Coding Plan invariant/);
   assert.throws(() => buildConfig({ models: ['GLM-9'] }, {}), /pinned native Coding Plan invariant/);
   assert.throws(() => buildConfig({ defaultThought: 'low' }, {}), /pinned native Coding Plan invariant/);
-  assert.throws(() => buildConfig({ thoughtLevels: ['low'] }, {}), /pinned native Coding Plan invariant/);
+  assert.throws(() => buildConfig({ thoughtLevels: ['low'] }, {}), /defaultThought must be one of/);
   assert.throws(() => buildConfig({}, { provider: 'x', models: ['y'] }), /pinned native Coding Plan invariant/);
   // Tunable limits still override cleanly.
   const tuned = buildConfig({ inboxPollMs: 50, heartbeatMs: 2000 }, {});
@@ -78,7 +86,7 @@ test('isolated ACP config uses upstream schema keys and rejects invalid ones', (
 });
 
 test('child env pins engine/provider, isolates XDG, carries bindings, preserves disallowedTools', () => {
-  const config = buildConfig();
+  const config = buildConfig({}, {});
   const paths = resolvePaths(config);
   const xdg = tempDir();
   const env = buildChildEnv(config, paths, {
@@ -108,7 +116,7 @@ test('child env pins engine/provider, isolates XDG, carries bindings, preserves 
 });
 
 test('child env inherits nothing remote-ish even with exotic spellings', () => {
-  const config = buildConfig();
+  const config = buildConfig({}, {});
   const paths = resolvePaths(config);
   const original = { ...process.env };
   process.env.ZCODE_ACP_REMOTE_TOKEN_V2 = 'secret';
@@ -124,7 +132,7 @@ test('child env inherits nothing remote-ish even with exotic spellings', () => {
 });
 
 test('explicit disallowedTools list is optional', () => {
-  const config = buildConfig();
+  const config = buildConfig({}, {});
   const env = buildChildEnv(config, resolvePaths(config), { mode: 'build' }, tempDir());
   assert.equal(env.ZCODE_DISALLOWED_TOOLS, undefined);
 });

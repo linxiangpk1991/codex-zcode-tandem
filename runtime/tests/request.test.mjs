@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildConfig } from '../config.mjs';
 import { normalizePromptItems, normalizeRequest } from '../request.mjs';
 
-const config = buildConfig();
+const config = buildConfig({}, {});
 const base = { cwd: 'C:\\tmp\\project' };
 
 test('V2 fields keep working: prompt shorthand, defaults, arrays', () => {

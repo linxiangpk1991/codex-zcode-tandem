@@ -114,6 +114,7 @@ export class ClientInbox {
       // ones must not be re-validated on every future poll.
       try { unlinkSync(file); } catch { /* already gone */ }
     }
+    commands.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id));
     return { commands, skipped };
   }
 }

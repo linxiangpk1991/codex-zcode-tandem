@@ -21,7 +21,7 @@ import { writeJsonAtomic, readJsonFile } from '../jsonio.mjs';
 
 const CONFIG = buildConfig({
   inboxPollMs: 25, heartbeatMs: 1000, gracefulCancelWaitMs: 400, bridgeIpcTimeoutMs: 2000,
-});
+}, {});
 const DISABLED_POLICY = {
   configPath: 'C:\\tmp\\xdg\\zcode-acp\\config.json',
   sessionMode: 'build',
@@ -192,6 +192,9 @@ test('phase prompts run serialized; a steer interleaves before remaining prompts
   const steer = report.controls.find(c => c.action === 'steer');
   assert.equal(steer.state, 'completed');
   assert.match(steer.detail, /end_turn/);
+  assert.ok(steer.submittedAt && steer.acceptedAt && steer.startedAt && steer.completedAt);
+  assert.ok(steer.queueDurationMs >= 0 && steer.executionDurationMs >= 0);
+  assert.equal(report.verification.outcome, 'not_run', 'end_turn alone is not test acceptance');
 });
 
 // ---------- pause ----------
@@ -211,6 +214,7 @@ test('pause mid-turn cancels the foreground turn, skips later prompts, exits pau
   assert.equal(report.sessionId, 'sess-1');
   const steer = report.controls.find(c => c.action === 'steer');
   assert.equal(steer.state, 'rejected');
+  assert.equal(steer.startedAt, undefined, 'unexecuted queued work stays unstarted');
   const pause = report.controls.find(c => c.action === 'pause' && c.state === 'completed');
   assert.ok(pause, 'pause control completed');
 });
@@ -399,18 +403,88 @@ test('non-end_turn stop reasons fail the run; missing required tools fail too', 
 
 test('a completed required tool within the turn passes the gate', async () => {
   const run = beginRun({
-    raw: { prompts: [{ text: 'p1', requiredTools: ['Bash'] }], allowToolKinds: ['execute'] },
+    raw: { prompts: [{ text: 'p1', requiredTools: ['Bash'] }], allowToolKinds: ['execute'],
+      workspace: { ownedPaths: [], preservedPaths: [], commands: ['npm test'] } },
     fakeOpts: { script: ['hold'] },
   });
   await waitFor(() => run.fake.promptLog.length === 1, 3000, 'prompt');
   run.fake.emitUpdate({
     sessionUpdate: 'tool_call', toolCallId: 'b1', title: 'Bash: npm test',
+    rawInput: { command: 'npm test' },
     kind: 'execute', _meta: { claudeCode: { toolName: 'Bash' } },
   });
   run.fake.emitUpdate({ sessionUpdate: 'tool_call_update', toolCallId: 'b1', status: 'completed' });
   run.fake.resolvePrompt('p1', 'end_turn');
   const { exitCode } = await run.task;
   assert.equal(exitCode, 0);
+});
+
+test('observed unapproved shell without a permission callback requires attention', async () => {
+  const run = beginRun({ raw: { prompts: ['p1', 'must-not-run'], allowToolKinds: ['execute'],
+    workspace: { ownedPaths: [], preservedPaths: [], commands: ['git status --short'] } }, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  run.fake.emitUpdate({ sessionUpdate: 'tool_call', toolCallId: 'uncalled', title: 'Bash', status: 'completed',
+    _meta: { claudeCode: { toolName: 'Bash' } }, rawInput: { command: 'git stash push' } });
+  run.fake.resolvePrompt('p1', 'end_turn');
+  const { report } = await run.task;
+  assert.equal(report.status, 'needs_attention');
+  assert.equal(run.fake.promptLog.length, 1);
+  assert.equal(report.workspaceObservations[0].postHoc, true);
+  assert.equal(report.summary.observedPolicyViolations, 1);
+});
+
+test('deadline cancellation returned by native prompt remains timeout, not generic failure', async () => {
+  const run = beginRun({ raw: { prompts: ['p1'], timeoutSeconds: 1 }, fakeOpts: { script: ['hold'] } });
+  run.fake.conn.cancel = async () => run.fake.resolvePrompt('p1', 'cancelled');
+  const { report, exitCode } = await run.task;
+  assert.equal(report.status, 'timeout');
+  assert.equal(exitCode, 2);
+});
+
+test('deadline resolving as end_turn cannot launch the next phase', async () => {
+  const run = beginRun({ raw: { prompts: ['p1', 'never'], timeoutSeconds: 1 }, fakeOpts: { script: ['hold'] } });
+  run.fake.conn.cancel = async () => run.fake.resolvePrompt('p1', 'end_turn');
+  const { report } = await run.task;
+  assert.equal(report.status, 'timeout');
+  assert.deepEqual(run.fake.promptLog, ['p1']);
+});
+
+test('deadline in a steer cannot dispatch a second queued steer', async () => {
+  const run = beginRun({ raw: { prompts: ['p1'], timeoutSeconds: 1 }, fakeOpts: { script: ['hold', 'hold'] } });
+  run.fake.conn.cancel = async () => run.fake.resolvePrompt('s1', 'end_turn');
+  await waitFor(() => run.fake.promptLog.length === 1);
+  writeControl(run.dir, run.invocationId, 'steer', { message: 's1' });
+  writeControl(run.dir, run.invocationId, 'steer', { message: 's2' });
+  await waitFor(() => readJsonFile(run.progressPath)?.controls?.queue?.length === 2);
+  run.fake.resolvePrompt('p1', 'end_turn');
+  const { report } = await run.task;
+  assert.equal(report.status, 'timeout');
+  assert.deepEqual(run.fake.promptLog, ['p1', 's1']);
+});
+
+test('control submitted before closing is explicitly rejected when it never reached a boundary', async () => {
+  const run = beginRun({ raw: { prompts: ['p1'] } });
+  run.fake.conn.prompt = async () => {
+    writeControl(run.dir, run.invocationId, 'steer', { message: 'too late' });
+    return { stopReason: 'end_turn' };
+  };
+  const { report } = await run.task;
+  assert.equal(report.controls.find(c => c.action === 'steer').state, 'rejected');
+});
+
+test('foreign duplicate id cannot overwrite the lifecycle of a queued steer', async () => {
+  const run = beginRun({ raw: { prompts: ['p1'] }, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  writeControl(run.dir, run.invocationId, 'steer', { message: 'valid steer' });
+  await waitFor(() => readJsonFile(run.progressPath)?.controls?.queue?.length === 1);
+  const progress = readJsonFile(run.progressPath), id = progress.controls.queue[0].id;
+  writeJsonAtomic(join(progress.controlInbox, 'foreign.json'), { id, invocationId: 'foreign', action: 'steer',
+    createdAt: new Date().toISOString(), payload: { message: 'bad' } });
+  await waitFor(() => readJsonFile(run.progressPath)?.controls?.history?.some(c => c.id === `skipped:${id}`));
+  assert.equal(readJsonFile(run.progressPath).controls.queue[0].id, id);
+  run.fake.resolvePrompt('p1', 'end_turn');
+  const { report } = await run.task;
+  assert.equal(report.controls.find(c => c.id === id).state, 'completed');
 });
 
 // ---------- background settle: notification REQUIRED ----------

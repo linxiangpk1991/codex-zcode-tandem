@@ -5,7 +5,7 @@
 // timestamp so a controller can distinguish a live phase from a stalled one.
 import { writeJsonAtomic } from './jsonio.mjs';
 
-const CONTROL_STATES = ['queued', 'accepted', 'completed', 'rejected', 'ignored'];
+const CONTROL_STATES = ['queued', 'accepted', 'started', 'completed', 'rejected', 'ignored'];
 
 export class ProgressTracker {
   constructor(opts) {
@@ -13,10 +13,12 @@ export class ProgressTracker {
     this.now = now ?? (() => new Date());
     this.path = progressPath;
     this.config = config;
+    this.startedAt = this.now().toISOString();
     this.state = {
       version: 3,
+      runtimeRoot: opts.runtimeRoot ?? null,
       invocationId,
-      startedAt: this.now().toISOString(),
+      startedAt: this.startedAt,
       updatedAt: this.startedAt,
       cwd,
       provider: config.provider,
@@ -32,7 +34,8 @@ export class ProgressTracker {
       turns: [],
       lastEvent: null,
       lastTool: null,
-      activity: { lastActivityAt: null, lastHeartbeatAt: null, eventsSeen: 0, bytesSeen: 0 },
+      activity: { lastActivityAt: null, lastHeartbeatAt: null, eventsSeen: 0, bytesSeen: null,
+        bytesScope: 'not measured; event count is not token or network usage' },
       controls: { queue: [], history: [] },
       pendingInput: null,
       workflow: { mode: request.nativeWorkflow || request.waitForBackground ? 'onDemand' : 'disabled', runs: {}, notificationState: null },
@@ -57,10 +60,12 @@ export class ProgressTracker {
   get pendingInput() { return this.state.pendingInput; }
 
   snapshot() {
+    this.refreshControlAges();
     return JSON.parse(JSON.stringify(this.state));
   }
 
   write(reason = 'event') {
+    this.refreshControlAges();
     this.state.updatedAt = this.now().toISOString();
     this.state.activity.lastHeartbeatAt = this.state.updatedAt;
     if (!this.path) return;
@@ -74,10 +79,10 @@ export class ProgressTracker {
   heartbeat() { this.write('heartbeat'); }
 
   /** Record a real protocol event (distinguishes activity from heartbeat). */
-  touch(event = null, bytes = 0) {
+  touch(event = null, bytes = null) {
     this.state.activity.lastActivityAt = this.now().toISOString();
     this.state.activity.eventsSeen += 1;
-    this.state.activity.bytesSeen += bytes;
+    if (Number.isFinite(bytes)) this.state.activity.bytesSeen = (this.state.activity.bytesSeen ?? 0) + bytes;
     if (event) {
       this.state.lastEvent = compactEvent(event, this.config.compactByteLimit);
     }
@@ -185,14 +190,25 @@ export class ProgressTracker {
   }
 
   /** Queue/ack lifecycle for control commands (accepted/completed/rejected + why). */
-  recordControl(id, action, state, detail = null) {
+  recordControl(id, action, state, detail = null, submittedAt = null) {
     if (!CONTROL_STATES.includes(state)) throw new Error(`bad control state: ${state}`);
     const queue = this.state.controls.queue;
     const history = this.state.controls.history;
     const existing = queue.findIndex(c => c.id === id);
-    const entry = { id, action, state, detail, at: this.now().toISOString() };
+    const previous = existing >= 0 ? queue[existing] : history.find(c => c.id === id);
+    const at = this.now().toISOString();
+    const entry = { ...previous, id, action, state, detail, at,
+      submittedAt: previous?.submittedAt ?? submittedAt ?? at,
+      transitions: [...(previous?.transitions ?? []), { state, at }].slice(-12) };
+    if (state === 'accepted') entry.acceptedAt ??= at;
+    if (state === 'started') entry.startedAt ??= at;
+    if (entry.startedAt) { entry.queueAgeMs = 0; entry.queueWarning = null; }
+    if (['completed', 'rejected', 'ignored'].includes(state)) entry.finishedAt = at;
+    if (state === 'completed') entry.completedAt = at;
+    entry.queueDurationMs = entry.startedAt ? Date.parse(entry.startedAt) - Date.parse(entry.submittedAt) : null;
+    entry.executionDurationMs = entry.startedAt && entry.finishedAt ? Date.parse(entry.finishedAt) - Date.parse(entry.startedAt) : null;
     if (existing >= 0) queue.splice(existing, 1);
-    if (state === 'queued' || state === 'accepted') {
+    if (['queued', 'accepted', 'started'].includes(state)) {
       queue.push(entry);
     } else {
       history.push(entry);
@@ -203,6 +219,15 @@ export class ProgressTracker {
     }
     this.write('control');
     return entry;
+  }
+
+  refreshControlAges() {
+    const now = this.now().getTime();
+    for (const entry of this.state.controls.queue) {
+      entry.queueAgeMs = entry.startedAt ? 0 : Math.max(0, now - Date.parse(entry.submittedAt));
+      entry.queueWarning = !entry.startedAt && entry.queueAgeMs >= (this.config.queueWarningMs ?? 300_000)
+        ? 'waiting_for_foreground_boundary' : null;
+    }
   }
 
   dropQueuedControls(reason) {

@@ -27,3 +27,7 @@ License: MIT for this project's code and documentation; upstream products retain
 - [Security](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SECURITY.md)
 
 Each guide has a linked Simplified Chinese version. Read actual source and version-specific evidence before making capability claims. Queued steering is not mid-tool injection; tool controls are not an OS sandbox; completion is not business acceptance. This index is a reading aid, not an authorization grant or a search-ranking guarantee.
+
+## Execution safety (1.1)
+- [Workspace ownership and test receipts](references/execution-safety.md): permission-callback limits, declared file ownership, reviewed commands, candidate-bound test results, steering timing and compact handoffs.
+- [工作区与测试回执](references/execution-safety.zh-CN.md): 中文升级说明与边界。
