@@ -4,11 +4,13 @@
 
 使用真正的 ZCode 引擎和用户的 Coding Plan。保留用户当前选择的 Codex 总控模型与思考强度。默认 GLM-5.3、thought=max；GLM-5.3-Flash 只在明确选择时使用，不替换为其他引擎或付费 API。
 
-源码目录是本文件的上一级目录；安装器生成的技能入口会记录实际源码路径与 Node 路径。以下 runtime/ 与  均相对源码目录，不相对用户的业务项目目录。不要借用作者或其他用户的路径、账号。
+源码目录是本文件的上一级目录；安装器生成的技能入口会记录实际源码路径与 Node 路径。runtime/ 与 references/ 均相对源码目录，不相对用户的业务项目目录。不要借用作者或其他用户的路径、账号。
 
 支持 Windows、Node 24.19.0。执行入口是 runtime/run-task.mjs REQUEST.json，控制入口是 runtime/control.mjs PROGRESS.json COMMAND.json。尚未安装或找不到原生引擎时，阅读 [安装与排障](installation.md)，先运行 scripts/setup.mjs --check。
 
 ACP 精确锁定 zcode-acp-server 0.65.1。每次调用使用隔离配置，不修改 ZCode 桌面全局设置。验证结果和限制见 [验收说明](acceptance.md)。
+
+桌面更新后，运行只读 `setup --doctor` 比较桌面/CLI/ACP 版本及原生入口 SHA256；CLI 版本不变不代表源码未变。快速 `setup --check` 使用元数据及上次成功 probe 缓存，普通任务不重复启动版本命令或哈希。成功 probe 只记录连接兼容性，不证明真实推理或任务验收。
 
 ## 分工与输入
 

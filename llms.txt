@@ -3,8 +3,9 @@
 > A Windows Codex skill that coordinates native ZCode over ACP. Codex scopes and reviews the work; ZCode implements, tests, or reviews with the user's own Coding Plan.
 
 Independent community project. Public skill name: codex-zcode-tandem.
-Supported baseline: Windows, Node 24.19.0, zcode-acp-server 0.65.1, ZCode Desktop 3.14.4.7912 / CLI 0.16.9.
+Connection baseline (1.2): Windows, Node 24.19.0, zcode-acp-server 0.65.1, ZCode Desktop 3.14.5.7961 / CLI 0.16.9. Historical inference checks have their own scope.
 Models: GLM-5.3 and GLM-5.3-Flash, default thought=max.
+Default model: GLM-5.3. Other supported models require explicit selection. setup --doctor reads versions/SHA256; a successful probe records local connection identity. Quota summaries preserve provider states and unknowns; there is no manual-reset count API.
 License: MIT for this project's code and documentation; upstream products retain their own terms.
 
 ## Start

@@ -142,6 +142,7 @@ function beginRun({ raw, fakeOpts = {}, invocationId }) {
       spawnTransport: opts => fake.spawn(opts),
       cleanupOwnedPids: () => [],
       nativeCliVersion: async () => ({ version: '3.9.9' }),
+      identityRoot: dir,
     },
   });
   return { fake, task, dir, invocationId: id, request,
@@ -675,6 +676,17 @@ test('a policy_denied arrival-guard event marks the run needs_attention', async 
 
 // ---------- actions ----------
 
+test('ordinary run performs only cheap identity comparison and recommends probe without blocking', async () => {
+  const run = beginRun({ raw: { prompt: 'normal task' } });
+  const { report } = await run.task;
+  assert.equal(report.status, 'completed');
+  assert.equal(report.nativeCliVersion, null);
+  assert.equal(report.nativeIdentity.source, 'local-metadata');
+  assert.equal(report.nativeIdentity.nativeSha256, null);
+  assert.equal(report.nativeIdentity.comparison.status, 'not_verified');
+  assert.ok(report.warnings.some(w => w.startsWith('NATIVE_COMPATIBILITY_PROBE_RECOMMENDED')));
+});
+
 test('probe action: readbacks without any prompt, reports versions', async () => {
   const run = beginRun({ raw: { action: 'probe' } });
   const { exitCode, report } = await run.task;
@@ -687,6 +699,7 @@ test('probe action: readbacks without any prompt, reports versions', async () =>
   assert.equal(report.acpVersion, '0.65.1');
   assert.deepEqual(report.nativeCliVersion, { version: '3.9.9' });
   assert.equal(report.effectivePolicy.sessionMode, 'build');
+  assert.equal(report.nativeIdentity.probeRecord.recorded, false, 'mock transport never establishes a real-source baseline');
 });
 
 test('quota action reports usage stats and skips sessions', async () => {
@@ -694,6 +707,7 @@ test('quota action reports usage stats and skips sessions', async () => {
   const { exitCode, report } = await run.task;
   assert.equal(exitCode, 0);
   assert.deepEqual(report.quota, { method: 'account/usage_stats' });
+  assert.equal(report.summary.quota.status, 'unknown', 'successful transport is not a successful GLM provider');
   assert.equal(run.fake.promptLog.length, 0);
   assert.equal(report.sessionId, null);
 });

@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildConfig, loadConfigFile } from '../runtime/config.mjs';
 import { assertSupportedHost, discoverPaths, isFile, SUPPORTED_NODE } from '../runtime/discovery.mjs';
+import { inspectNativeIdentity, collectNativeIdentity } from '../runtime/native-identity.mjs';
+import { windowsEnvironment } from '../runtime/reporting.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VALUE_FLAGS = new Set(['--zcode-bin', '--provider-file', '--codex-home', '--skills-dir']);
-const BOOL_FLAGS = new Set(['--check', '--replace', '--help']);
+const BOOL_FLAGS = new Set(['--check', '--doctor', '--replace', '--help']);
 
 export function parseArgs(argv) {
   const args = {};
@@ -25,6 +27,7 @@ export function parseArgs(argv) {
     } else throw new Error(`未知参数：${flag}`);
   }
   if (args['--codex-home'] && args['--skills-dir']) throw new Error('--codex-home 与 --skills-dir 不能同时使用。');
+  if (args['--doctor']) args['--check'] = true;
   return args;
 }
 
@@ -103,6 +106,8 @@ export function installSetup(plan, args) {
   const result = { status: args['--check'] ? 'checked' : 'installed', root: plan.root,
     skillFile: plan.skillFile, node: SUPPORTED_NODE, acp: '0.65.1',
     optionalProviderConfigPresent: isFile(plan.config.providerFile),
+    nativeIdentity: inspectNativeIdentity(plan.root, { nodeBin: plan.nodeBin, zcodeBin: plan.config.zcodeBin }),
+    environment: windowsEnvironment({ nodeBin: plan.nodeBin, zcodeBin: plan.config.zcodeBin }),
     note: '本地路径与依赖检查通过；自定义供应商配置可缺省。probe 验证连接与有效模型，真实推理仍需有效登录及额度。', backups: [] };
   if (args['--check']) return result;
   const configText = JSON.stringify({ ...plan.saved,
@@ -124,8 +129,14 @@ export function installSetup(plan, args) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = parseArgs(process.argv.slice(2));
-    if (args['--help']) console.log('用法：node scripts/setup.mjs [--check] [--replace] [--zcode-bin 路径] [--provider-file 路径] [--skills-dir 目录 | --codex-home 目录]\n--check 只检查，不写文件。新装默认 ~/.agents/skills；已有旧入口时复用。安装只写本地路径配置与技能入口，不复制凭据、不下载依赖。');
-    else console.log(JSON.stringify(installSetup(inspectSetup(args), args), null, 2));
+    if (args['--help']) console.log('Usage: node scripts/setup.mjs [--check | --doctor] [--replace] [--zcode-bin PATH] [--provider-file PATH] [--skills-dir DIRECTORY | --codex-home DIRECTORY]\n--check reads local paths, dependencies and the successful probe cache without launching CLI or hashing. --doctor reads current Desktop/CLI/ACP versions and native SHA256; it never advances the successful probe baseline. No credentials are copied and no packages are downloaded.');
+    else {
+      const plan = inspectSetup(args);
+      const result = installSetup(plan, args);
+      if (args['--doctor']) result.nativeIdentity = await collectNativeIdentity(plan.root,
+        { nodeBin: plan.nodeBin, zcodeBin: plan.config.zcodeBin });
+      console.log(JSON.stringify(result, null, 2));
+    }
   } catch (error) {
     console.error(`ZCode 安装检查失败：\n${error.message}`);
     process.exitCode = 1;

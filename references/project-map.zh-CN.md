@@ -18,6 +18,7 @@ control.mjs 将命令写入本次收件箱；inbox.mjs 验证归属并消费。p
 | workflow-observation | 核对实际工具输入，属于观察而非沙箱 |
 | evidence | 限制日志体积并保留后续游标 |
 | transport | 子进程、ACP 连接及有界 IPC 生命周期 |
+| native-identity | 本地版本/SHA检查；成功兼容 probe 才保存本树基线，元数据快查不替代重哈希 |
 | tests | 离线协议、状态、权限、恢复与清理回归 |
 
 ## 权威来源与恢复

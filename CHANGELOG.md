@@ -1,5 +1,17 @@
 # Changelog / 更新记录
 
+## 1.2.0 — 2026-10-10
+
+`setup --doctor` reads the installed Desktop/CLI/ACP versions and native entry SHA256 without changing the successful-probe baseline. Fast `--check` uses metadata and the last successful probe cache; ordinary tasks do not launch extra version commands or hash the engine. Source changes are detected even when the CLI version is unchanged. Only a completed, stable connection probe records this source root's local identity.
+
+`setup --doctor` 只读桌面/CLI/ACP 版本和原生入口 SHA256；快速 `--check` 使用元数据与成功 probe 缓存，普通任务不额外启动版本命令或哈希。版本号未变的源码更新仍可识别；只有成功且身份稳定的连接 probe 才记录本树基线。
+
+Quota summaries expose GLM window percentages, UTC reset times and original millisecond timestamps. Provider authentication, rate limiting, unavailable and unknown states remain distinct; shared-account changes are not task billing. The API does not expose manual-reset opportunities. Windows diagnostics now show explicit native/Node paths and inherited environment checks; the pinned ACP 0.65.1 POSIX login-shell fallback remains an upstream limitation.
+
+额度摘要显示 GLM 时间窗口百分比、UTC 恢复时间和原始毫秒时间戳，区分认证、限流、不可用和未知。共享账号变化不是任务账单，接口没有手动重置机会次数字段。Windows 增加原生/Node 入口和继承环境检查；ACP 0.65.1 的 POSIX 登录探针回退限制保留。
+
+Compatibility / 兼容：Windows, Node 24.19.0, ACP 0.65.1; same-machine connection baseline Desktop 3.14.5.7961 / CLI 0.16.9. GLM-5.3/max remains the default; other supported models require explicit selection. No new inference benchmark or cross-platform qualification is claimed.
+
 ## 1.1.0 — 2026-10-07
 
 File tools now check ownership and preserved paths; Bash needs an exact reviewed command. Test receipts bind declared source inputs, argv, cwd and the real exit code. Steering records queue and execution time separately. Startup fallback is visible, Python children use UTF-8, and optional quota snapshots are separate from task billing. A compact summary keeps model completion separate from verification. Control commands are bound to the invocation's runtime directory. Deadline cancellation retains timeout status.

@@ -1,5 +1,9 @@
 # 工作区保护与可信交接
 
+## 1.2 额度摘要
+
+`summary.quotaSnapshots.before/after` 与 `action=quota` 的 `summary.quota` 展示 GLM provider 状态、窗口 remainingPercent/usedPercent、UTC resetsAt 和原始毫秒 nextResetTime。缺失或非法值为 null；成功 ACP 响应可能包含 auth_error、rate_limited 或 unavailable，完整原始响应保留在 resultFile。共享额度不是任务账单；上游未提供手动重置次数，本技能不推算或触发重置。
+
 一次任务完成，只说明模型回合结束。能否合入，还要看它改了哪些文件，以及测试究竟跑出了什么结果。
 
 ## 先把责任写进请求

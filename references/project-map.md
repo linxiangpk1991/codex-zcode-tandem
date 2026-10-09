@@ -18,6 +18,7 @@ control.mjs writes invocation-bound commands; inbox.mjs validates and consumes t
 | workflow-observation | Checks actual tool input; observation is not a sandbox |
 | evidence | Bounds log output and preserves cursors |
 | transport | Child processes, ACP connection and bounded IPC lifecycle |
+| native-identity | Local versions/SHA inspection and per-source-root successful connection baseline; metadata checks do not replace fresh hashing |
 | tests | Offline protocol, state, permission, recovery, installer and cleanup regressions |
 
 ## Which evidence to trust

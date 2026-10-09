@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildReportState, completeReport, captureQuota } from './reporting.mjs';
 import { ScopeObserver } from './scope-observer.mjs';
+import { inspectNativeIdentity, collectNativeIdentity, rememberCompatibilityProbe } from './native-identity.mjs';
 import { buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from './config.mjs';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { ProgressTracker } from './progress.mjs';
@@ -49,7 +50,7 @@ export function assertPolicyProof(policy, request, expectedWorkflowMode) {
 
 export async function runTask({ request, config, cwd, invocationId = randomUUID(), deps = {} }) {
   const dependencyKeys = ['delay', 'setIntervalFn', 'clearIntervalFn', 'setTimeoutFn',
-    'clearTimeoutFn', 'spawnTransport', 'log', 'nativeCliVersion', 'cleanupOwnedPids'];
+    'clearTimeoutFn', 'spawnTransport', 'log', 'nativeCliVersion', 'cleanupOwnedPids', 'identityRoot'];
   for (const key of Object.keys(deps)) {
     if (!dependencyKeys.includes(key)) throw new Error(`Unknown injected dependency: ${key}`);
   }
@@ -62,6 +63,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   const log = deps.log ?? (() => {});
 
   const paths = resolvePaths(config);
+  const identityRoot = deps.identityRoot ?? resolve(MODULE_DIR, '..');
   const startedAtMs = Date.now();
   const deadlineAt = startedAtMs + request.timeoutSeconds * 1000;
 
@@ -120,7 +122,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     pendingInput: null, controls: [], warnings: [],
     error: null, diagnostics: null, cleanup: [], quota: null,
     effectivePolicy: null, xdgConfigHome: xdgHome, workflowObservations: [],
+    nativeIdentity: inspectNativeIdentity(identityRoot, paths),
   };
+  if (request.action !== 'probe' && report.nativeIdentity.comparison.compatibilityProbeRecommended) {
+    st.warnings.push(`NATIVE_COMPATIBILITY_PROBE_RECOMMENDED: ${report.nativeIdentity.comparison.status}; run setup --doctor and a compatibility probe. Ordinary tasks remain allowed.`);
+  }
 
   let transport = null;
   const nativePids = new Set();
@@ -808,6 +814,14 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.setError(report.error);
     }
     try { rmSync(xdgHome, { recursive: true, force: true }); } catch { /* best effort */ }
+    if (request.action === 'probe' && status === 'completed' && report.nativeIdentity) {
+      try {
+        report.nativeIdentity.probeRecord = rememberCompatibilityProbe(identityRoot, report.nativeIdentity,
+          { model: report.modelEffective, thought: report.thoughtEffective, mode: report.modeEffective });
+      } catch {
+        report.nativeIdentity.probeRecord = { recorded: false, reason: 'Local probe cache could not be written.' };
+      }
+    }
     completeReport(report, request, paths);
     if (resultPath) writeJsonAtomic(resultPath, report);
     tracker.write('final');
@@ -841,6 +855,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   // ---------- main flow ----------
   let exitCode = 1;
   try {
+    if (request.action === 'probe') {
+      st.nativeCliVersion = deps.nativeCliVersion ? await deps.nativeCliVersion(paths)
+        : await probeNativeCliVersion({ nodeBin: paths.nodeBin, zcodeBin: paths.zcodeBin });
+      report.nativeIdentity = await collectNativeIdentity(identityRoot, paths,
+        { cliProbe: async () => st.nativeCliVersion });
+    }
     transport = await spawnTransportFn({
       bridgePath: join(MODULE_DIR, 'bridge.mjs'),
       cwd, env: buildChildEnv(config, paths, request, xdgHome),
@@ -856,7 +876,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
     const init = await transport.conn.initialize({
       protocolVersion: 1,
-      clientInfo: { name: 'codex-zcode-native-v3', version: '3.2.0' },
+      clientInfo: { name: 'codex-zcode-native-v3', version: '1.2.0' },
       clientCapabilities: {}, // no elicitation: all interactions arrive as request_permission
     });
     st.acpVersion = init?.agentInfo?.version ?? null;
@@ -865,7 +885,8 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
     if (request.action === 'quota') {
       tracker.setStatus('running');
-      st.quota = await transport.conn.extMethod('account/usage_stats', {});
+      report.quotaObservation = await captureQuota(transport.conn);
+      st.quota = report.quotaObservation.value ?? null;
       exitCode = await finalize('completed');
       return { exitCode, report };
     }
@@ -899,9 +920,6 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     });
 
     if (request.action === 'probe') {
-      st.nativeCliVersion = deps.nativeCliVersion
-        ? await deps.nativeCliVersion(paths)
-        : await probeNativeCliVersion({ nodeBin: paths.nodeBin, zcodeBin: paths.zcodeBin });
       exitCode = await finalize('completed');
       return { exitCode, report };
     }

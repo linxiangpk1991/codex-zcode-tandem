@@ -1,5 +1,13 @@
 # Verification and known limits
 
+## 1.2 validation — 2026-10-10
+
+The final independent candidate passed the complete offline suite. Added coverage checks unchanged CLI versions with changed hashes, installation changes during inspection, read-only doctor, successful-probe baselines, cheap ordinary-call warnings, GLM provider states and unknown percentages. The official skill validator, relative documentation links and diff checks passed; runner remains 996 lines.
+
+A real connection probe without model inference read back GLM-5.3 / max / build, Desktop 3.14.5.7961, CLI 0.16.9 and ACP 0.65.1. The native entry SHA256 was `fad4c35c4c36ec210d8a06d3fa0e77de23c8545e2eb6ff90aea1eb38d1e6275f`. Stable successful connection identity was recorded locally; owned processes exited normally. Both GLM quota snapshots were available with two real windows. This is shared-account observation, not task billing.
+
+`ACP_LOGIN_SHELL_FALLBACK` remains observable. This release improves diagnostics; it does not patch the upstream POSIX probe, dependencies, global PATH or SHELL. A native connection does not verify project tool paths. No new inference benchmark, second-machine qualification or business deployment is claimed. Earlier sections remain historical baselines.
+
 ## 1.1 validation
 
 136 offline checks cover Windows behavior, including large tool inputs, duplicate controls and closing/deadline races. Installation into a separate skills directory and a native GLM-5.3/max connection probe passed. The shared execution core was exercised in an isolated temporary repository: owned writes and reviewed Git status worked, controller-owned content remained unchanged, and a stash request was denied. Live steering ran before the next planned phase with separate queue/execution timestamps. Replaying those real tool records through the final input observer found no policy violations.

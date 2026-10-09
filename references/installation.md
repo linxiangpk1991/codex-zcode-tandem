@@ -4,7 +4,7 @@
 
 ## 1. Prepare Windows and Node
 
-Use **Node 24.19.0**, Windows, and your own installed/signed-in ZCode. The tested baseline is Desktop 3.14.4.7912 / native CLI 0.16.9. The launcher rejects other Node versions and platforms instead of silently relaxing the pin.
+Use **Node 24.19.0**, Windows, and your own installed/signed-in ZCode. The current same-machine connection baseline is Desktop 3.14.5.7961 / native CLI 0.16.9. The launcher rejects other Node versions and platforms instead of silently relaxing the pin.
 
 Confirm `node.exe --version` prints `v24.19.0` and `npm.cmd` belongs to that same Node installation. Obtain that release from [Node's official archive](https://nodejs.org/dist/v24.19.0/), if needed.
 
@@ -57,6 +57,10 @@ This check writes nothing:
 node.exe scripts/setup.mjs --check
 ```
 
+`--check` reads file metadata, the pinned ACP version and this source root's last successful probe cache. It does not launch CLI, re-hash, or write files. `not_verified` means no baseline; `metadata_unchanged` does not prove unchanged source.
+
+After a desktop update, run `node.exe scripts/setup.mjs --doctor`. It freshly reads Desktop product version, CLI `--version`, ACP version and native entry SHA256, compares the baseline, and never advances it. A changed hash requests a compatibility probe even if the CLI version matches. There is no implicit network lookup, upgrade or blanket task block.
+
 A pass proves local paths, pinned versions and dependencies. It does not prove login, quota or a native connection. Run a connection probe without model inference:
 
 ```powershell
@@ -77,6 +81,8 @@ node.exe runtime/run-task.mjs work/probe-request.json
 
 Inspect status=completed, the effective Coding Plan model, thoughtEffective=max, modeEffective=build, and cleanup. A successful probe still does not prove sufficient inference quota. Try a small real task next; see [examples](../docs/examples.md).
 
+A completed probe with stable installation identity saves `work/native-identity.json` in this source root. Failed probes, unconfirmed cleanup and installation changes do not advance that baseline. A custom layout without an adjacent `ZCode.exe` reports a null Desktop version with a reason; CLI/SHA inspection remains available. No credential contents are read.
+
 ## 5. Update, roll back, or remove the entry
 
 Pause and inspect active work first. Keep session/run IDs and results. Update the checkout using Git, install from the new lockfile, then run setup --check, setup --replace, and the probe. Existing local path/configuration values are preserved.
@@ -96,3 +102,4 @@ To remove the skill, inspect and remove only its generated codex-zcode-tandem en
 | Entry already exists | Inspect the target and use --replace for the intended update. |
 | Skill missing from Codex | Reload skills/open a new chat; check the discovery directory and active Codex home. |
 | Quota unavailable | Resolve your subscription or wait; there is no automatic paid-channel switch. |
+| ACP_LOGIN_SHELL_FALLBACK | ACP 0.65.1 exposes no supported Windows skip switch. Inspect environment.toolPaths and check project tools using explicit executables/installed dispatchers in the inherited environment. Do not change SHELL or inject Bash to suppress this warning. |

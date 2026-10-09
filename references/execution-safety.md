@@ -1,5 +1,9 @@
 # Workspace protection and test evidence
 
+## Quota summaries in 1.2
+
+`summary.quotaSnapshots.before/after` and `action=quota`'s `summary.quota` show GLM provider status, window remainingPercent/usedPercent, UTC resetsAt and original epoch-millisecond nextResetTime. Missing or invalid values are null. A successful ACP response may still contain auth_error, rate_limited or unavailable. Raw responses remain in resultFile. These are shared-account observations, not exact task billing; the upstream API exposes no manual-reset count and this skill does not infer or trigger resets.
+
 A finished model turn is not a passing test. Before accepting a handoff, check which files changed and what the test runner actually returned.
 
 ## Declare ownership in the request

@@ -16,6 +16,8 @@ If you already use both tools and keep copying requirements and results between 
 
 **New in 1.1:** file ownership and reviewed command grants, source-bound test receipts, separate queue/execution timing, visible startup fallback warnings, and a compact handoff. Existing edit/execute requests need a `workspace` declaration; read the [upgrade guide](references/execution-safety.md). Model completion and test acceptance are reported separately.
 
+**New in 1.2:** read-only native identity checks include Desktop/CLI/ACP versions and SHA256, with a local baseline recorded only by a successful connection probe. Quota summaries show actual GLM windows and reset times while preserving unavailable states. Windows diagnostics give tool paths; the upstream POSIX login-shell fallback remains visible.
+
 - **A feature with clear boundaries.** Let ZCode implement and test one module while Codex keeps track of the broader requirement.
 - **A task that needs course corrections.** Inspect progress, ask what is blocking the work, or queue a changed requirement without starting the conversation over.
 - **A second opinion on a change.** Start a separate ZCode review session with the original requirement and actual candidate.
@@ -25,7 +27,7 @@ For a one-line edit, a direct edit in Codex may be simpler. Tandem is most usefu
 
 ## Start here
 
-You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git, and **Node 24.19.0**. The tested native baseline is ZCode Desktop **3.14.4.7912** / CLI **0.16.9**. Other versions need their own connection and task checks.
+You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git, and **Node 24.19.0**. The current connection baseline is ZCode Desktop **3.14.5.7961** / CLI **0.16.9**. Other identities need their own connection and task checks.
 
 In PowerShell, choose a directory you will keep, then run:
 

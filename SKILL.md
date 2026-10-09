@@ -27,6 +27,8 @@ Use absolute cwd, resultFile and progressFile. Set model, thought=max, mode=buil
 
 action=probe checks the connection and effective configuration without model inference. Read the effective model, thought and mode. A heartbeat is not work: inspect controls, pendingInput, currentTurn, lastTool, workflow and error.
 
+After a desktop update, use read-only `setup --doctor` to compare Desktop/CLI/ACP versions and native entry SHA256. An unchanged CLI version does not mean unchanged source. Fast `setup --check` uses metadata and the last successful probe cache; ordinary tasks do not re-hash or launch extra version commands. A successful probe records connection compatibility, not inference or task acceptance.
+
 Read [live control](references/live-control.md) before querying, asking, steering, answering or pausing. New prompts run serially at safe boundaries. Pause does not undo writes. Read back unknown outcomes before continuing.
 
 Do not switch to a paid provider on quota failure. Machine-wide auto-resume is disabled. Scheduling follow-ups requires a user request.

@@ -53,6 +53,14 @@ node.exe scripts/setup.mjs --skills-dir 'D:/MySkills'
 node.exe scripts/setup.mjs --check
 ```
 
+`--check` 读取文件元数据、锁定 ACP 和本树上次成功 probe 的缓存，不启动 CLI、不重新计算 SHA256、不写文件。没有基线显示 `not_verified`；`metadata_unchanged` 不能证明源码相同。
+
+桌面自动更新或怀疑兼容性变化时，执行 `node.exe scripts/setup.mjs --doctor`。它重新读取桌面产品版本、CLI `--version`、ACP 版本和原生入口 SHA256，比较旧基线但不刷新它。版本号相同而 SHA 不同仍报告 `changed`，建议运行 probe；不隐式联网、升级或阻断普通任务。
+
+成功且安装身份稳定的 probe 将连接配置与身份写入本源码目录的 `work/native-identity.json`；失败、清理未确认或安装变化不会刷新通过基线。缓存不读取凭据。自定义布局找不到相邻 `ZCode.exe` 时桌面版本为 null，并说明原因。
+
+ACP 0.65.1 没有受支持的 Windows 跳过入口，POSIX 登录探针失败仍显示 `ACP_LOGIN_SHELL_FALLBACK`。查看 `environment.toolPaths`，用项目工具的绝对可执行文件或已安装 dispatcher 检查继承环境；不要改 SHELL 或注入 Bash 来消除警告。
+
 通过仅代表路径、版本和依赖存在，不证明登录、额度或原生连接。用无模型推理的 probe 验证：
 
 ```powershell
