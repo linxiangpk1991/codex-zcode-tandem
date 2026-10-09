@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { basename, isAbsolute } from 'node:path';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { assessVerification } from './verification.mjs';
+import { assessDelivery } from './delivery.mjs';
 
 export function shellFamily(shell = '') {
   const name = basename(shell.replaceAll('\\', '/')).toLowerCase();
@@ -104,6 +105,9 @@ export function completeReport(report, request, paths) {
     childPythonEncoding: 'utf-8',
   };
   report.verification = assessVerification(request.verification);
+  report.deliveryContract = request.delivery ? { cwd: report.cwd, delivery: request.delivery,
+    verification: request.verification } : null;
+  report.delivery = assessDelivery(request, report);
   report.policyCoverage = { workspaceDeclared: !!request.workspace, enforcement: 'permission callbacks only',
     resumedOrBackground: !!(request.sessionId || request.nativeWorkflow || request.waitForBackground),
     boundary: 'Native auto-allowed tools, resumed sessions and background workers may omit callbacks. Tool-event observations are post hoc, not prevention. Use an isolated checkout for edits; this is not an OS sandbox.' };
@@ -111,7 +115,7 @@ export function completeReport(report, request, paths) {
     invocationId: report.invocationId, status: report.status,
     model: report.modelEffective, thought: report.thoughtEffective,
     sessionId: report.sessionId, workflowRunIds: report.workflowRunIds,
-    verification: report.verification, controls: report.controls.slice(-20).map(c => ({
+    verification: report.verification, delivery: report.delivery, controls: report.controls.slice(-20).map(c => ({
       id: c.id, action: c.action, state: c.state, submittedAt: c.submittedAt,
       acceptedAt: c.acceptedAt, startedAt: c.startedAt, completedAt: c.completedAt,
       queueDurationMs: c.queueDurationMs, executionDurationMs: c.executionDurationMs })),

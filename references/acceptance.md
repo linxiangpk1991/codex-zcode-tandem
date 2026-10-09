@@ -68,3 +68,12 @@ Management resume without a later foreground prompt can return terminal journal 
 Logs may be truncated; follow their cursors. Heartbeats and end_turn are insufficient for user acceptance. A configured 90-minute deadline has not been proven by a 90-minute unattended endurance run.
 
 Raw results remain outside Git because they can contain local paths and project content. This page retains only the public verification summary. No production deployment, business-data write, remote-control service or scheduled watcher is included in these claims.
+
+
+## 2026-10-10 — Review and handoff workflow
+
+Offline coverage includes automatic review, missing review evidence, pause/resume, late steering, changed candidates, functional receipts, pending visual acceptance and read-only compatibility. The personal candidate passed 152 full-suite checks, followed by 59 affected checks after independent review corrections (overlapping counts, not additive). The public candidate separately checks its installation policy.
+
+A real GLM-5.3/max fixture first failed the review gate: it summarized the code but only attempted missing-receipt reads. After an explicit current-turn inspection instruction, the resumed session read the candidate and completed review, correctly remaining awaiting_validation. The controller then ran the real test and produced a runner receipt; the read-only handoff check became ready_for_controller_review. No visual-model, browser or business acceptance is claimed by this fixture.
+
+Independent source review found a false block from superseded workflow history and a missing early directory-path rejection. Both were corrected with regression coverage. Execution and delivery share the completion rules in policy.mjs.

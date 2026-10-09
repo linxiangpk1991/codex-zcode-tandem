@@ -7,7 +7,7 @@
 // workflow-resume, workflow-status. Progress goes to PROGRESS.json (atomic),
 // the final report to RESULT.json (both optional request fields); without a
 // resultFile the report prints to stdout. Exit codes: 0 completed, 1
-// failed/needs_attention, 2 timeout/cancelled, 3 paused.
+// failed/needs_attention, 2 timeout/cancelled, 3 paused, 4 handoff not ready.
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildConfig } from './config.mjs';

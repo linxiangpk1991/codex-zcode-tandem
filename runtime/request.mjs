@@ -3,6 +3,7 @@
 // rejected here, BEFORE any process is spawned.
 import { normalizeWorkspace } from './workspace-policy.mjs';
 import { normalizeVerification } from './verification.mjs';
+import { normalizeDelivery, withDeliveryReview } from './delivery.mjs';
 const ACTIONS = ['run', 'quota', 'probe', 'workflow-resume', 'workflow-status', 'workflow-events'];
 
 function fail(field, why) {
@@ -139,6 +140,8 @@ export function normalizeRequest(config, raw) {
     fail('action', 'workflow actions take no prompts');
   }
 
+  const workspace = normalizeWorkspace(raw.workspace, raw.cwd);
+  const delivery = normalizeDelivery(raw.delivery, { ...raw, action, workspace });
   return Object.freeze({
     ...raw,
     action,
@@ -148,8 +151,8 @@ export function normalizeRequest(config, raw) {
     timeoutSeconds,
     maxOutputBytes,
     idleSeconds,
-    prompts: promptItems,
-    workspace: normalizeWorkspace(raw.workspace, raw.cwd),
+    prompts: withDeliveryReview(promptItems, delivery),
+    workspace, delivery,
     verification: normalizeVerification(raw.verification),
     quotaSnapshots: asBool(raw.quotaSnapshots, 'quotaSnapshots'),
     nativeWorkflow: asBool(raw.nativeWorkflow, 'nativeWorkflow') || action.startsWith('workflow-'),

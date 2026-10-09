@@ -40,3 +40,5 @@ Git 仅保存源码、锁文件、示例和脱敏摘要。work、acceptance、ro
 workspace-policy 在权限回调中检查文件归属和完整命令；verification 与 scripts/check-evidence 绑定声明的测试输入、读取已有执行器回执，不负责执行测试；reporting 提供启动诊断和紧凑摘要。模型状态与测试验收分别报告。
 
 scope-observer 在日志压缩前保留有界的权限相关输入，将未知范围证据与确认的策略违规分别记录。
+
+`delivery.mjs` 负责自动首审、候选内容绑定和交付状态，复用已有验证回执，不执行测试、不授予独立验收。

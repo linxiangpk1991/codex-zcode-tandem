@@ -1,5 +1,12 @@
 # Changelog / 更新记录
 
+## 1.3.0 — 2026-10-10
+
+Implementation requests automatically append a final review/repair turn. A structured review and current source-bound test receipts determine handoff readiness, independently of native completion. Pause, late steering, changed candidates, missing checks and open findings cannot produce a ready handoff. Browser functional paths use declared evidence; visual acceptance remains with the controller. `check-evidence.mjs handoff` rechecks controller-run validation without new inference. **Compatibility:** callers must handle exit 4 (invocation ended, handoff pending); existing read-only calls remain unchanged.
+
+实现请求自动追加最终首审与修复，结合结构化审查及当前源码绑定的测试回执，单独判断能否交付。暂停、首审后纠偏、候选变化、漏跑检查和未解决问题均不能标为可交付。浏览器功能按声明的流程验证，视觉验收仍由总控负责。新增只读 `check-evidence.mjs handoff`，总控补测后无需再次调用模型。**兼容变化：** 调用方需处理退出码 4（调用结束、交付待完成）；只读调用保持原义。
+
+
 ## 1.2.0 — 2026-10-10
 
 `setup --doctor` reads the installed Desktop/CLI/ACP versions and native entry SHA256 without changing the successful-probe baseline. Fast `--check` uses metadata and the last successful probe cache; ordinary tasks do not launch extra version commands or hash the engine. Source changes are detected even when the CLI version is unchanged. Only a completed, stable connection probe records this source root's local identity.

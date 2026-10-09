@@ -10,7 +10,7 @@
 // the policy_denied arrival-guard event and native PID tracking.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, existsSync } from 'node:fs';
+import { mkdtempSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -791,4 +791,69 @@ test('native PID events land in the progress controller block', async () => {
   await waitFor(() => !readJsonFile(run.progressPath)?.controller?.nativePids?.includes(4242), 3000, 'native pid gone');
   const { exitCode } = await run.task;
   assert.equal(exitCode, 0);
+});
+
+const DELIVERY_RAW = {
+  prompt: 'implement', allowToolKinds: ['read', 'edit'],
+  workspace: { ownedPaths: ['note.txt'] },
+  delivery: { candidateFiles: ['note.txt'], validation: 'not_applicable', validationReason: 'plain text edit' },
+};
+function emitReview(run) {
+  run.fake.emitUpdate({ sessionUpdate: 'tool_call', toolCallId: 'review-read', title: 'Read',
+    kind: 'read', status: 'completed', rawInput: { file_path: join(run.dir, 'note.txt') },
+    _meta: { claudeCode: { toolName: 'Read' } } });
+  run.fake.emitUpdate({ sessionUpdate: 'agent_message_chunk', content: { type: 'text',
+    text: '```tandem-review\n' + JSON.stringify({ reviewedFiles: ['note.txt'], fixedIssues: [],
+      openIssues: [], summary: 'Read the final text.' }) + '\n```' } });
+}
+
+test('automatic review executes after implementation and is surfaced in result/summary/progress', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['end_turn', 'hold'] } });
+  writeFileSync(join(run.dir, 'note.txt'), 'done');
+  await waitFor(() => run.fake.promptLog.length === 2);
+  assert.match(run.fake.promptLog[1], /required first-pass review/);
+  emitReview(run); run.fake.resolvePrompt(run.fake.promptLog[1]);
+  const { report, exitCode } = await run.task;
+  assert.equal(exitCode, 0);
+  assert.equal(report.delivery.status, 'ready_for_controller_review');
+  assert.equal(report.summary.delivery.status, report.delivery.status);
+  assert.equal(readJsonFile(run.progressPath).delivery.status, report.delivery.status);
+});
+
+test('an end_turn without review evidence exits 4, not successful handoff', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW });
+  const { report, exitCode } = await run.task;
+  assert.equal(report.status, 'completed');
+  assert.equal(exitCode, 4);
+  assert.equal(report.delivery.status, 'needs_review');
+});
+
+test('a late steering turn invalidates the just-completed review even if files stay unchanged', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['end_turn', 'hold'] } });
+  writeFileSync(join(run.dir, 'note.txt'), 'done');
+  await waitFor(() => run.fake.promptLog.length === 2);
+  writeControl(run.dir, run.invocationId, 'steer', { message: 'A new requirement must be checked' });
+  await waitFor(() => readJsonFile(run.progressPath)?.controls?.queue?.length === 1);
+  emitReview(run); run.fake.resolvePrompt(run.fake.promptLog[1]);
+  const { report, exitCode } = await run.task;
+  assert.equal(exitCode, 4);
+  assert.equal(report.firstPassReview.invalidated, true);
+  assert.match(report.delivery.reasons.join(), /subsequent steering/);
+});
+
+test('pause cannot skip review; a resumed request gets a fresh review turn', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  writeControl(run.dir, run.invocationId, 'pause', {});
+  await waitFor(() => run.fake.cancelCount > 0);
+  run.fake.resolvePrompt('implement', 'cancelled');
+  const paused = await run.task;
+  assert.equal(paused.exitCode, 3);
+  assert.equal(paused.report.delivery.status, 'needs_review');
+  const resumed = beginRun({ raw: { ...DELIVERY_RAW, sessionId: 'sess-1', prompt: 'finish remaining work' },
+    fakeOpts: { script: ['end_turn', 'hold'] } });
+  writeFileSync(join(resumed.dir, 'note.txt'), 'done');
+  await waitFor(() => resumed.fake.promptLog.length === 2);
+  emitReview(resumed); resumed.fake.resolvePrompt(resumed.fake.promptLog[1]);
+  assert.equal((await resumed.task).exitCode, 0);
 });

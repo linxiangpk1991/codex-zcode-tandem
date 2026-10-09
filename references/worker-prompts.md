@@ -82,3 +82,7 @@ Inspect status, stopReason, modelEffective, thoughtEffective, modeEffective, per
 Match workspace.ownedPaths, preservedPaths and complete reviewed commands to the task brief. Do not stash/reset/clean shared work, switch branches or remove worktrees; Codex supplies the baseline directory. Preserve the existing runner's real test receipt. Execute first, filter logs separately, and never use a trailing echo as the test exit code.
 
 Use coherent plan/compatibility, implementation, test and review phases so steering has a boundary. Cache changes should cover existing warm data; DOM claims may need real rendering; faulty fixtures and controller preparation errors are not product defects. See [workspace and receipts](execution-safety.md).
+
+## Required final review
+
+Implementation requests automatically append a final review/repair turn. Intermediate self-review prompts are optional. Declare candidate files, relevant functional paths and verification receipts as described in [delivery](delivery.md). Do not claim that model completion or self-review is independent acceptance. Validate the shortest core flow before widening the task.

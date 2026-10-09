@@ -27,7 +27,11 @@ export function prepareCheck(spec) {
   if (/^(?:cmd|powershell|pwsh|bash|sh|zsh)(?:\.exe)?$/i.test(basename(command[0].replaceAll('\\', '/')))) {
     throw new Error('Bind the actual test runner argv, not a shell pipeline or trailing echo');
   }
-  return { kind: 'tandem-check-input', version: 1, name, cwd, command, candidateFiles,
+  const userPaths = spec.userPaths ?? [];
+  if (!Array.isArray(userPaths) || userPaths.length > 30 || userPaths.some(p => typeof p !== 'string' || !p.trim())) {
+    throw new Error('userPaths must be an array of at most 30 nonempty strings');
+  }
+  return { kind: 'tandem-check-input', version: 1, name, cwd, command, candidateFiles, userPaths,
     candidateSha256: sourceIdentity(cwd, candidateFiles), commandSha256: argvHash(command),
     preparedAt: new Date().toISOString() };
 }
@@ -55,7 +59,8 @@ export function assessCheck({ preparedFile, receiptFile, failureClass = 'unclass
       throw new Error('Invalid prepared check');
     }
     const base = { name: prepared.name, command: prepared.command, cwd: prepared.cwd,
-      candidateSha256: prepared.candidateSha256, preparedFile, receiptFile, failureClass };
+      candidateSha256: prepared.candidateSha256, preparedFile, receiptFile, failureClass,
+      userPaths: prepared.userPaths ?? [] };
     if (!existsSync(receiptFile)) return { ...base, outcome: 'not_run', exitCode: null };
     const raw = read(receiptFile), r = normalizeReceipt(raw);
     const stale = sourceIdentity(prepared.cwd, prepared.candidateFiles) !== prepared.candidateSha256;

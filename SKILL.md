@@ -11,6 +11,12 @@ This file's directory is the source root. The installed pointer records its actu
 
 Windows and Node 24.19.0 are required; ACP is pinned to 0.65.1. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
 
+## First-pass review before handoff
+
+Implementation requests automatically end with a review/repair turn. Declare `delivery.candidateFiles`, functional `userPaths` where relevant, and existing `verification` inputs/receipts. Read `delivery.status`: only `ready_for_controller_review` starts final acceptance. Exit 4 means the native invocation ended but the handoff is not ready.
+
+Give ZCode approved test commands, or arrange controller-run validation and return actual failures. Use `check-evidence.mjs handoff` to recheck new receipts without repeating implementation. Browser functionality uses DOM, requests and persisted readback; visual acceptance belongs to a vision-capable controller. This does not switch models. A pause, late correction or changed candidate cannot reuse a stale review. See [delivery and recovery](references/delivery.md).
+
 ## Delegate a coherent piece of work
 
 Codex owns scope, project baseline, allowed and preserved paths, decisions, integration, and final acceptance. ZCode owns the assigned implementation/test/fix phase. Do not create a duplicate executor for a phase already assigned to ZCode.

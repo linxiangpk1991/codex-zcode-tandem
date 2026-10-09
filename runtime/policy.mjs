@@ -150,3 +150,22 @@ export function backgroundSettled(tasks, notificationFinished) {
   if (!tasks.length || tasks.some(t => !['completed', 'failed'].includes(t.status))) return false;
   return tasks.some(t => t.status === 'failed') || notificationFinished;
 }
+
+// One completion owner for execution and delivery. The run map also retains
+// superseded history; only bound run IDs belong to this invocation's result.
+export function assessBackgroundCompletion({ tasks = [], notificationState = null,
+  runs = {}, bound = [], managementResume = false }) {
+  if (notificationState === 'failed') return { settled: false, error: 'Background completion notification failed' };
+  if (tasks.some(t => t.status === 'failed')) return { settled: false, error: 'Native background task failed' };
+  if (backgroundSettled(tasks, notificationState === 'completed')) return { settled: true };
+  const nonePending = !tasks.some(t => !['completed', 'failed'].includes(t.status));
+  const runsSettled = bound.length > 0 && bound.every(id => /^(completed|failed|cancelled|stopped)/.test(String(runs[id] ?? 'running')));
+  if (runsSettled && bound.some(id => !String(runs[id]).startsWith('completed'))) {
+    return { settled: false, error: 'Native workflow stopped or failed; inspect state before recovery' };
+  }
+  if (nonePending && runsSettled && notificationState === 'completed') return { settled: true };
+  if (nonePending && runsSettled && managementResume && notificationState === null) {
+    return { settled: true, notificationDisposition: 'not_observed_no_foreground_handoff' };
+  }
+  return { settled: false };
+}

@@ -14,6 +14,8 @@ If you already use both tools and keep copying requirements and results between 
 
 ## What it helps with
 
+**New in 1.3:** implementation tasks now finish with first-pass review and repair. Handoff readiness is separate from model completion; missing tests, stale inputs and late corrections stay visible. Functional browser checks and visual acceptance have different owners. Callers must handle exit code 4. [How delivery works](references/delivery.md)
+
 **New in 1.1:** file ownership and reviewed command grants, source-bound test receipts, separate queue/execution timing, visible startup fallback warnings, and a compact handoff. Existing edit/execute requests need a `workspace` declaration; read the [upgrade guide](references/execution-safety.md). Model completion and test acceptance are reported separately.
 
 **New in 1.2:** read-only native identity checks include Desktop/CLI/ACP versions and SHA256, with a local baseline recorded only by a successful connection probe. Quota summaries show actual GLM windows and reset times while preserving unavailable states. Windows diagnostics give tool paths; the upstream POSIX login-shell fallback remains visible.

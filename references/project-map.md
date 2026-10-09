@@ -44,3 +44,5 @@ Git includes source, lockfile, examples, bilingual docs and artwork. Local confi
 workspace-policy checks ownership and exact command grants at permission callbacks. verification and scripts/check-evidence bind declared test inputs and import existing runner receipts; they do not execute tests. reporting produces startup diagnostics and a compact handoff. Model status and test acceptance have separate fields.
 
 scope-observer keeps bounded policy-relevant inputs before log compaction and separates unknown scope evidence from confirmed policy violations.
+
+`delivery.mjs` owns automatic first-pass review, candidate binding and handoff readiness. It reuses verification receipts; it does not execute tests or grant independent acceptance.

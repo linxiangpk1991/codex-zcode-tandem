@@ -1,13 +1,7 @@
 // runTask — the V3 orchestrator. Transport-agnostic by design: the real
 // bridge/ACP wiring comes from transport.spawnTransport; tests inject fakes.
-//
-// Responsibilities: isolated per-invocation XDG config, pre-initialize policy
-// proof, pinned model/mode/thought readback, the phase prompt loop with
-// serialized steering and pause, inbox answer handling for pendingInput,
-// permission policy application, bounded background-workflow waiting, the
-// optional idle control window, one fixed total deadline, graceful cancel
-// followed by bounded task-owned process-tree cleanup, and early/atomic
-// progress + result persistence.
+// Owns isolated configuration, serial phases/control, bounded native lifecycle
+// and report persistence. Delivery and verification decisions live in helpers.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,6 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildReportState, completeReport, captureQuota } from './reporting.mjs';
+import { reviewPrompt, captureReview, observedCandidateInspection } from './delivery.mjs';
 import { ScopeObserver } from './scope-observer.mjs';
 import { inspectNativeIdentity, collectNativeIdentity, rememberCompatibilityProbe } from './native-identity.mjs';
 import { buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from './config.mjs';
@@ -24,7 +19,7 @@ import { ClientInbox } from './inbox.mjs';
 import { observeWorkflowBinding } from './workflow-observation.mjs';
 import { boundWorkflowEvents } from './evidence.mjs';
 import {
-  backgroundSettled, buildPendingInput, classifyPermissionRequest, decideToolPermission,
+  assessBackgroundCompletion, buildPendingInput, classifyPermissionRequest, decideToolPermission,
   isTool, mergeBackgroundTask, nativeToolName, selectOption,
 } from './policy.mjs';
 import { spawnTransport, probeNativeCliVersion } from './transport.mjs';
@@ -601,6 +596,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   async function drainSteers() {
     while (st.steers.length > 0 && !terminal() && !st.needsAttention) {
       const steer = st.steers.shift();
+      if (report.firstPassReview) report.firstPassReview.invalidated = true;
       const label = `steer:${steer.id.slice(-8)}`;
       tracker.setPhase(tracker.state.phase.index, label);
       tracker.recordControl(steer.id, steer.action, 'started');
@@ -635,8 +631,10 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.setPhase(index, item.label);
       tracker.setStatus('running');
       const previousToolIds = new Set(st.tools.keys());
-      const result = await runPromptTurn({ label: item.label, text: item.text });
+      const result = await runPromptTurn({ label: item.label, text: item.deliveryReview ? reviewPrompt(request) : item.text });
       recordTurn(item.label, result);
+      if (item.deliveryReview) report.firstPassReview = captureReview(request, result,
+        observedCandidateInspection(request, [...st.tools.entries()].filter(([id]) => !previousToolIds.has(id)).map(([, t]) => t)));
       writeResultEarly();
       if (terminal()) break;
       if (result.stopReason !== 'end_turn') {
@@ -663,7 +661,6 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   }
 
   async function waitBackgroundSettle() {
-    const notificationFinished = () => st.notificationState === 'completed';
     for (;;) {
       if (terminal() || st.needsAttention) return;
       if (Date.now() >= deadlineAt) throw new Error('Task deadline reached while waiting for background work');
@@ -680,28 +677,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
           warn(`workflow-status refresh failed: ${e.message}`);
         }
       }
-      const tasks = [...st.backgroundTasks.values()];
-      if (st.notificationState === 'failed') throw new Error('Background completion notification failed');
-      if (tasks.some(t => t.status === 'failed')) throw new Error('Native background task failed');
-      if (backgroundSettled(tasks, notificationFinished())) return;
-      const runs = tracker.state.workflow.runs;
-      const bound = tracker.state.workflowRunIds;
-      const nonePending = !tasks.some(t => !['completed', 'failed'].includes(t.status));
-      const runsSettled = bound.length > 0 && bound.every(id => {
-        const status = String(runs[id] ?? 'running');
-        return /^(completed|failed|cancelled|stopped)/.test(status);
-      });
-      if (runsSettled && bound.some(id => !String(runs[id]).startsWith('completed'))) {
-        throw new Error('Native workflow stopped or failed; inspect state before recovery');
-      }
-      if (nonePending && runsSettled && notificationFinished()) return;
-      // The management resume command has no following foreground prompt.
-      // Native 0.16.9 may emit no notification turn for that path. A journal
-      // terminal state is sufficient to return its result, but is NOT recorded
-      // as a completed notification or a safe conversational handoff.
-      if (nonePending && runsSettled && request.action === 'workflow-resume'
-        && st.notificationState === null) {
-        report.notificationDisposition = 'not_observed_no_foreground_handoff';
+      const completion = assessBackgroundCompletion({ tasks: [...st.backgroundTasks.values()],
+        notificationState: st.notificationState, runs: tracker.state.workflow.runs,
+        bound: tracker.state.workflowRunIds, managementResume: request.action === 'workflow-resume' });
+      if (completion.error) throw new Error(completion.error);
+      if (completion.settled) {
+        if (completion.notificationDisposition) report.notificationDisposition = completion.notificationDisposition;
         return;
       }
       await delay(1000);
@@ -823,9 +804,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       }
     }
     completeReport(report, request, paths);
+    tracker.state.delivery = report.delivery;
     if (resultPath) writeJsonAtomic(resultPath, report);
     tracker.write('final');
-    const code = exitCode ?? exitCodeOf(status);
+    const code = exitCode ?? (status === 'completed' && request.delivery
+      && report.delivery.status !== 'ready_for_controller_review' ? 4 : exitCodeOf(status));
     st.finalCode = code;
     console.error(`[zcode-v3] final status=${status} exit=${code} session=${st.sessionId ?? '-'}`);
     return code;
@@ -876,7 +859,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
     const init = await transport.conn.initialize({
       protocolVersion: 1,
-      clientInfo: { name: 'codex-zcode-native-v3', version: '1.2.0' },
+      clientInfo: { name: 'codex-zcode-native-v3', version: '3.3.0' },
       clientCapabilities: {}, // no elicitation: all interactions arrive as request_permission
     });
     st.acpVersion = init?.agentInfo?.version ?? null;
