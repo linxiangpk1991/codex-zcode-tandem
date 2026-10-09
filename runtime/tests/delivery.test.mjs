@@ -41,6 +41,9 @@ test('editing tasks receive mandatory final review, including resumed sessions',
   assert.equal(readOnly.delivery, null); assert.equal(readOnly.prompts.length, 1);
   const scopedReadOnly = normalizeRequest(buildConfig({}, {}), { ...f.raw, delivery: undefined, allowToolKinds: ['read'] });
   assert.equal(scopedReadOnly.delivery, null);
+  const workflow = normalizeRequest(buildConfig({}, {}), { ...f.raw, delivery: undefined,
+    allowToolKinds: ['read'], waitForBackground: true });
+  assert.equal(workflow.prompts.at(-1).label, REVIEW_LABEL);
 });
 
 test('reading receipts alone cannot stand in for inspecting the candidate', t => {

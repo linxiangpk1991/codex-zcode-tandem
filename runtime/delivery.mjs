@@ -18,7 +18,7 @@ function strings(value, field, limit = 200) {
 export function normalizeDelivery(raw, request) {
   const editing = request.action === 'run' && (request.allowToolKinds?.includes('edit')
     || (request.workspace?.ownedPaths?.length > 0
-      && (request.allowToolKinds?.includes('execute') || request.nativeWorkflow)));
+      && (request.allowToolKinds?.includes('execute') || request.nativeWorkflow || request.waitForBackground)));
   if (raw === undefined && !editing) return null;
   if (request.action !== 'run') throw new Error('delivery is only supported for action=run');
   if (raw !== undefined && (!raw || typeof raw !== 'object' || Array.isArray(raw))) {
