@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverPaths } from './discovery.mjs';
+import { ISOLATED_SESSION_MODES } from './acp-contract.mjs';
 
 export const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const discovered = discoverPaths();
@@ -25,7 +26,10 @@ export const DEFAULTS = Object.freeze({
   defaultModel: 'GLM-5.3',
   thoughtLevels: ['low', 'high', 'max'],
   defaultThought: 'max',
-  modes: ['plan', 'build', 'edit'],
+  // `guarded` is an explicit opt-in (upstream 3.15.1+): yolo semantics plus a
+  // one-time approval on AST-recognized dangerous shell commands. Default
+  // stays `build`; `yolo`/`auto` remain config-file-only, never defaults.
+  modes: ['plan', 'build', 'edit', 'guarded'],
   defaultMode: 'build',
   // Limits. The foreground main request has one fixed total deadline.
   defaultTimeoutSeconds: 5400,
@@ -144,7 +148,9 @@ export function resolvePaths(config) {
 
 /** Workflow gate mode for this invocation (upstream vocabulary). */
 export function workflowModeForRequest(request) {
-  return request.nativeWorkflow || request.waitForBackground ? 'onDemand' : 'disabled';
+  // Explicit delegation must expose tools on 3.15+. onDemand requires a
+  // separate /workflow activation and silently hid them on ordinary prompts.
+  return request.nativeWorkflow || request.waitForBackground ? 'alwaysOn' : 'disabled';
 }
 
 /**
@@ -156,7 +162,7 @@ export function buildIsolatedAcpConfig({ workflowMode, sessionMode = 'build', qu
   if (!['disabled', 'onDemand', 'alwaysOn'].includes(workflowMode)) {
     throw new Error(`Unsupported workflow mode: ${workflowMode}`);
   }
-  if (!['plan', 'build', 'edit', 'yolo', 'auto'].includes(sessionMode)) {
+  if (!ISOLATED_SESSION_MODES.includes(sessionMode)) {
     throw new Error(`Unsupported session mode: ${sessionMode}`);
   }
   return {
@@ -205,6 +211,9 @@ export function buildChildEnv(config, paths, request, xdgHome) {
   env.CODEX_ZCODE_BINDINGS = JSON.stringify({
     approvedWorkflowSha256: request.approvedWorkflowSha256,
     approvedWorkflowModel: request.approvedWorkflowModel,
+    approvedWorkflowArgs: request.approvedWorkflowArgs,
+    approvedWorkflowModelBindings: request.approvedWorkflowModelBindings,
+    approvedWorkflowMaxConcurrency: request.approvedWorkflowMaxConcurrency,
     workflowRunId: request.workflowRunId,
   });
   // Upstream merges these with its built-in Cron* disallow list; an explicit

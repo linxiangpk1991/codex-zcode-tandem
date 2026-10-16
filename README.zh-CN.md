@@ -10,9 +10,11 @@ Tandem 是一个 **Windows 上的 Codex 技能，通过 ACP（Agent Client Proto
 
 如果你已经在用这两个工具，经常来回复制需求、补充背景、搬运结果，Tandem 可以把这段协作接起来。
 
-**Windows · Node 24.19.0 · ACP 0.65.1 · MIT 开源**
+**Windows · Node 24.19.0 · ACP 0.72.0 · MIT 开源**
 
 ## 它能帮你做什么
+
+**1.4 新增：** 适配 ZCode 3.15.3 / ACP 0.72.0，按回合和阶段记录实际用量、耗时；工作流绑定参数、模型映射及显式并发值，并提供独立审查示例。超时后的迟到响应不会覆盖最终结果。[用量与覆盖范围](references/metrics.zh-CN.md) · [原生审查流程](references/native-workflows.zh-CN.md)
 
 **1.3 新增：** 实现任务自动补首审与修复，交付状态独立于模型结束。缺测试、证据过期、首审后又纠偏，都不能算可交付。功能检查交给测试工具，视觉验收交给总控。调用脚本需要适配退出码 4。[交付流程与恢复](references/delivery.zh-CN.md)
 
@@ -29,7 +31,7 @@ Tandem 是一个 **Windows 上的 Codex 技能，通过 ACP（Agent Client Proto
 
 ## 开始使用
 
-准备好支持技能的 Codex、单独安装并登录的 [ZCode](https://zcode.z.ai/)、Git，以及 **Node 24.19.0**。本轮连接基线是 ZCode 桌面 **3.14.5.7961** / CLI **0.16.9**；其他身份需要先检查连接和实际任务。
+准备好支持技能的 Codex、单独安装并登录的 [ZCode](https://zcode.z.ai/)、Git，以及 **Node 24.19.0**。本轮连接基线是 ZCode 桌面 **3.15.3.8237** / CLI **0.16.9**；其他身份需要先检查连接和实际任务。
 
 选一个准备长期保留的目录，在 PowerShell 中执行：
 
@@ -37,7 +39,7 @@ Tandem 是一个 **Windows 上的 Codex 技能，通过 ACP（Agent Client Proto
 git clone https://github.com/linxiangpk1991/codex-zcode-tandem.git
 Set-Location codex-zcode-tandem
 node.exe --version
-npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 

@@ -13,6 +13,8 @@ import { reviewPrompt, captureReview, observedCandidateInspection } from './deli
 import { ScopeObserver } from './scope-observer.mjs';
 import { inspectNativeIdentity, collectNativeIdentity, rememberCompatibilityProbe } from './native-identity.mjs';
 import { buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from './config.mjs';
+import { isAutoAllowMode } from './acp-contract.mjs';
+import { applySessionOptions } from './session-config.mjs';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { ProgressTracker } from './progress.mjs';
 import { ClientInbox } from './inbox.mjs';
@@ -23,6 +25,9 @@ import {
   isTool, mergeBackgroundTask, nativeToolName, selectOption,
 } from './policy.mjs';
 import { spawnTransport, probeNativeCliVersion } from './transport.mjs';
+import { TaskMetrics } from './metrics.mjs';
+import { createTurnRunner } from './turns.mjs';
+import runtimePackage from './package.json' with { type: 'json' };
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -88,7 +93,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
   const scopeObserver = new ScopeObserver(request, config);
   const st = {
-    invocationId, tracker, request, config,
+    invocationId, tracker, request, config, metrics: new TaskMetrics(),
     sessionId: null, acpVersion: null, agentInfo: null,
     policy: null, policyError: null,
     tools: new Map(), trackedToolCalls: new Map(),
@@ -122,8 +127,13 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   if (request.action !== 'probe' && report.nativeIdentity.comparison.compatibilityProbeRecommended) {
     st.warnings.push(`NATIVE_COMPATIBILITY_PROBE_RECOMMENDED: ${report.nativeIdentity.comparison.status}; run setup --doctor and a compatibility probe. Ordinary tasks remain allowed.`);
   }
+  if (isAutoAllowMode(request.mode)) {
+    st.warnings.push(`MODE_${request.mode.toUpperCase()}_AUTO_ALLOW: upstream auto-allows ordinary tools in ${request.mode} mode; permission callbacks mostly do not fire and workspace checks for those tools are post-hoc observation. The workspace policy itself stays active.`);
+  }
 
   let transport = null;
+  const { runPromptTurn, recordTurn, interruptTurn } = createTurnRunner({ st, tracker, report,
+    request, config, metrics: st.metrics, getTransport: () => transport });
   const nativePids = new Set();
   let policyResolve = null;
   const policyPromise = new Promise(r => { policyResolve = r; });
@@ -178,6 +188,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
         break;
       case 'policy_denied':
         st.needsAttention = true;
+        warn(message.reason ?? 'Native policy denied a tool');
         tracker.touch({ type: 'permission_denied', nativeName: message.toolName, reason: message.reason });
         break;
       case 'bridge_error':
@@ -268,7 +279,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (['CreateWorkflow', 'AmendWorkflow'].includes(name) && merged.rawInput
       && !st.workflowObserved.has(id)) {
       st.workflowObserved.add(id);
-      const observation = observeWorkflowBinding(request, name, merged.rawInput, cwd);
+      const observation = observeWorkflowBinding(request, name, update.rawInput ?? merged.rawInput, cwd);
       report.workflowObservations.push({ toolCallId: id, ...observation });
       if (name === 'AmendWorkflow' && observation.matched) {
         for (const runId of [...tracker.state.workflowRunIds]) observeRun(runId, tracker.state.workflow.runs[runId]);
@@ -548,51 +559,6 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   }
 
   // ---------- turns ----------
-  async function runPromptTurn({ label, text }) {
-    st.promptInFlight = true;
-    st.activeTurn = { label, text: '', chars: 0 };
-    tracker.setCurrentTurn({ label, chars: 0 });
-    tracker.touch({ type: 'turn_started', label });
-    try {
-      const promise = transport.conn.prompt({
-        sessionId: st.sessionId, prompt: [{ type: 'text', text }],
-      });
-      st.promptPromise = promise;
-      const response = await promise;
-      st.lastStopReason = response.stopReason ?? null;
-      return { ...response, text: st.activeTurn.text, chars: st.activeTurn.chars };
-    } finally {
-      st.promptPromise = null;
-      st.promptInFlight = false;
-      const turn = st.activeTurn;
-      st.activeTurn = null;
-      tracker.setCurrentTurn(null);
-      if (turn) {
-        tracker.touch({ type: 'turn_finished', label, stopReason: st.lastStopReason, chars: turn.chars });
-      }
-    }
-  }
-
-  function recordTurn(label, result) {
-    const text = result.text ?? '';
-    st.response = st.response.length + text.length > request.maxOutputBytes
-      ? (st.response + text).slice(-request.maxOutputBytes) : st.response + text;
-    if (st.response.length >= request.maxOutputBytes) {
-      report.responseTruncated = true;
-      tracker.flagEvidence('responseTruncated');
-    }
-    const entry = {
-      label, stopReason: result.stopReason ?? null, chars: result.chars ?? text.length,
-        preview: text.slice(0, 2000), previewTruncated: text.length > 2000, truncated: text.length > 2000,
-    };
-    tracker.addTurn(entry);
-    report.turns.push(entry);
-    if (report.turns.length > config.maxTurns) {
-      report.turns.shift();
-      tracker.flagEvidence('turnsTruncated');
-    }
-  }
-
   async function drainSteers() {
     while (st.steers.length > 0 && !terminal() && !st.needsAttention) {
       const steer = st.steers.shift();
@@ -612,6 +578,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
           tracker.recordControl(steer.id, steer.action, 'rejected', `paused mid-turn (${result.stopReason})`);
         }
       } catch (e) {
+        if (st.finalized) return;
         if (st.pausing) {
           tracker.recordControl(steer.id, steer.action, 'rejected', `paused: ${e.message}`);
         } else {
@@ -631,7 +598,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       tracker.setPhase(index, item.label);
       tracker.setStatus('running');
       const previousToolIds = new Set(st.tools.keys());
-      const result = await runPromptTurn({ label: item.label, text: item.deliveryReview ? reviewPrompt(request) : item.text });
+      const result = await runPromptTurn({ label: item.label, phase: item.phase, text: item.deliveryReview ? reviewPrompt(request) : item.text });
       recordTurn(item.label, result);
       if (item.deliveryReview) report.firstPassReview = captureReview(request, result,
         observedCandidateInspection(request, [...st.tools.entries()].filter(([id]) => !previousToolIds.has(id)).map(([, t]) => t)));
@@ -710,7 +677,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   }
 
   function writeResultEarly() {
-    if (!resultPath) return;
+    if (!resultPath || st.finalized) return;
     try {
       writeJsonAtomic(resultPath, { ...buildReport(), status: tracker.status, incomplete: true });
     } catch (e) {
@@ -776,6 +743,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     report.status = status;
     report.error = error ? redact(error) : null;
     report.finishedAt = new Date().toISOString();
+    interruptTurn();
     report.diagnostics = transport ? redact(transport.stderr()) : null;
     if (request.quotaSnapshots && transport && status === 'completed') {
       report.quotaSnapshots.after = await captureQuota(transport.conn);
@@ -851,7 +819,13 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       ipcTimeoutMs: config.bridgeIpcTimeoutMs,
     });
     tracker.setBridgePid(transport.pid);
-    transport.on({ sessionUpdate: handleUpdate, requestPermission: handlePermission });
+    transport.on({ sessionUpdate: handleUpdate, requestPermission: handlePermission,
+      turnState: params => {
+        if (st.finalized || params?.sessionId !== st.sessionId || typeof params.running !== 'boolean') return;
+        tracker.state.nativeActivity = { running: params.running, observedAt: new Date().toISOString(),
+          scope: 'session busy state; includes compaction and is not correlated to a prompt' };
+        tracker.noteActivity();
+      } });
 
     const policy = await policyPromise;
     if (!policy || policy.timeout) throw new Error('bridge did not report its effective policy');
@@ -859,7 +833,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
     const init = await transport.conn.initialize({
       protocolVersion: 1,
-      clientInfo: { name: 'codex-zcode-native-v3', version: '3.3.0' },
+      clientInfo: { name: 'codex-zcode-native-v3', version: runtimePackage.version },
       clientCapabilities: {}, // no elicitation: all interactions arrive as request_permission
     });
     st.acpVersion = init?.agentInfo?.version ?? null;
@@ -886,18 +860,13 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     tracker.setSession(st.sessionId);
     tracker.touch({ type: request.sessionId ? 'session_resumed' : 'session_created' });
 
-    const applyAndVerify = async (configId, value) => {
-      const result = await transport.conn.setSessionConfigOption({
-        sessionId: st.sessionId, configId, value,
-      });
-      st.configOptions = result?.configOptions ?? [];
-      const current = st.configOptions.find(o => o.id === configId)?.currentValue;
-      if (current !== value) throw new Error(`${configId} selection mismatch: ${current}`);
-      return current;
-    };
-    report.modelEffective = await applyAndVerify('model', `${config.provider}\\${request.model}`);
-    report.modeEffective = await applyAndVerify('mode', request.mode);
-    report.thoughtEffective = await applyAndVerify('thought', request.thought);
+    const applied = await applySessionOptions(transport.conn, st.sessionId, {
+      provider: config.provider, model: request.model, thought: request.thought, mode: request.mode,
+    });
+    st.configOptions = applied.configOptions;
+    report.modelEffective = applied.modelEffective;
+    report.modeEffective = applied.modeEffective;
+    report.thoughtEffective = applied.thoughtEffective;
     tracker.setEffective({
       model: report.modelEffective, thought: report.thoughtEffective, mode: report.modeEffective,
     });

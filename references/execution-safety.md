@@ -71,7 +71,7 @@ New progress files also bind runtimeRoot. Mutating controls must use that runtim
 
 ## Diagnose startup and read a smaller handoff
 
-ACP 0.65.1 probes the environment using POSIX `-l -c env -0` arguments. When SHELL points to PowerShell or pwsh this may fail and fall back to the inherited environment. Tandem preserves stderr and reports `ACP_LOGIN_SHELL_FALLBACK`. It does not patch the dependency or rewrite global PATH. A successful session proves native startup, not the availability of project tools. Child Python processes explicitly use UTF-8.
+ACP 0.72.0 probes the environment using POSIX `-l -c env -0` arguments. When SHELL points to PowerShell or pwsh this may fail and fall back to the inherited environment. Tandem preserves stderr and reports `ACP_LOGIN_SHELL_FALLBACK`. It does not patch the dependency or rewrite global PATH. A successful session proves native startup, not the availability of project tools. Child Python processes explicitly use UTF-8.
 
 Set `summaryFile` for a compact status, verification result, recent controls and evidence boundaries. Full details stay in `resultFile`. `previewTruncated` means a turn preview exceeds 2000 characters; the old `truncated` alias remains for compatibility. `evidence.*Truncated` describes retained full records. Unmeasured transport bytes are `null`.
 

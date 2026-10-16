@@ -3,6 +3,7 @@ import { basename, isAbsolute } from 'node:path';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { assessVerification } from './verification.mjs';
 import { assessDelivery } from './delivery.mjs';
+import { PINNED_ACP_VERSION, isAutoAllowMode } from './acp-contract.mjs';
 
 export function shellFamily(shell = '') {
   const name = basename(shell.replaceAll('\\', '/')).toLowerCase();
@@ -16,7 +17,7 @@ export function startupWarnings(stderr = '', env = process.env) {
     code: 'ACP_LOGIN_SHELL_FALLBACK', source: 'zcode-acp-server',
     shellFamily: shellFamily(env.SHELL), fallback: 'inherited-environment',
     probeShell: env.SHELL?.trim() || '/bin/zsh',
-    message: 'ACP 0.65.1 login-shell probe uses POSIX -l -c / env -0; it failed and inherited environment was used. No supported Windows skip switch is exposed by this version.',
+    message: `ACP ${PINNED_ACP_VERSION} login-shell probe uses POSIX -l -c / env -0; it failed and inherited environment was used. No supported Windows skip switch is exposed by this version.`,
     nextAction: 'Check the inherited project tool paths with their explicit executable/dispatcher. Do not set SHELL to cmd/pwsh or inject Bash just to hide this warning.',
   }] : [];
 }
@@ -87,7 +88,9 @@ export function buildReportState(report, st, tracker, progressPath, inboxDir) {
     evidence: { ...tracker.state.evidence }, activity: { ...tracker.state.activity },
     warnings: st.warnings, quota: st.quota, nativeCliVersion: st.nativeCliVersion,
     progressFile: progressPath, controlInbox: inboxDir,
+    metrics: st.metrics.snapshot(report.firstPassReview),
   });
+  tracker.state.metrics = report.metrics;
   return report;
 }
 
@@ -109,12 +112,17 @@ export function completeReport(report, request, paths) {
     verification: request.verification } : null;
   report.delivery = assessDelivery(request, report);
   report.policyCoverage = { workspaceDeclared: !!request.workspace, enforcement: 'permission callbacks only',
+    mode: request.mode,
+    modeBoundary: isAutoAllowMode(request.mode)
+      ? `mode ${request.mode} auto-allows ordinary tools upstream; permission callbacks mostly do not fire and workspace checks for those tools are post-hoc observation. The workspace policy itself stays active.`
+      : null,
     resumedOrBackground: !!(request.sessionId || request.nativeWorkflow || request.waitForBackground),
     boundary: 'Native auto-allowed tools, resumed sessions and background workers may omit callbacks. Tool-event observations are post hoc, not prevention. Use an isolated checkout for edits; this is not an OS sandbox.' };
   report.summary = {
     invocationId: report.invocationId, status: report.status,
     model: report.modelEffective, thought: report.thoughtEffective,
     sessionId: report.sessionId, workflowRunIds: report.workflowRunIds,
+    metrics: report.metrics,
     verification: report.verification, delivery: report.delivery, controls: report.controls.slice(-20).map(c => ({
       id: c.id, action: c.action, state: c.state, submittedAt: c.submittedAt,
       acceptedAt: c.acceptedAt, startedAt: c.startedAt, completedAt: c.completedAt,

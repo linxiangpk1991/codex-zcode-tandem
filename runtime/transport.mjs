@@ -72,7 +72,10 @@ export async function spawnTransport({ bridgePath, cwd, env, onEvent,
       const reply = await handlers.requestPermission?.(params);
       return reply ?? { outcome: { outcome: 'cancelled' } };
     },
-    async extNotification() { /* $/zcode/* hints need no handling */ },
+    async extNotification(method, params) {
+      // The server emits two aliases for one state. Subscribe to exactly one.
+      if (method === '_zcode/turnState') await handlers.turnState?.(params);
+    },
   }), acp.ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout)));
 
   let queue = Promise.resolve();

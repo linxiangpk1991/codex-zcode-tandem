@@ -13,6 +13,9 @@ control.mjs 将命令写入本次收件箱；inbox.mjs 验证归属并消费。p
 | 模块 | 责任 |
 | --- | --- |
 | runner | 配置读回、串行阶段、控制队列、问答、后台等待和统一收尾 |
+| acp-contract / session-config | ACP 锁定版本、支持的模式，以及模型/模式/思考强度的生效读回 |
+| turns / metrics | 提示回合生命周期、统一收尾、分阶段耗时与实际用量覆盖范围 |
+| workflow-contract | 统一校验脚本字节、路径展开正文、参数、模型映射及显式并发值 |
 | bridge | 上游实例捕获、通知边界、工作流管理接口和 PID 观察 |
 | native-guards / policy | 权限校验、工具范围、脚本/模型/运行绑定 |
 | workflow-observation | 核对实际工具输入，属于观察而非沙箱 |

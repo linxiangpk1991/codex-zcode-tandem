@@ -4,6 +4,8 @@
 import { normalizeWorkspace } from './workspace-policy.mjs';
 import { normalizeVerification } from './verification.mjs';
 import { normalizeDelivery, withDeliveryReview } from './delivery.mjs';
+import { PHASES } from './metrics.mjs';
+import { validateWorkflowInputs } from './workflow-contract.mjs';
 const ACTIONS = ['run', 'quota', 'probe', 'workflow-resume', 'workflow-status', 'workflow-events'];
 
 function fail(field, why) {
@@ -46,7 +48,8 @@ export function normalizePromptItems(raw) {
       }
       requiredTools = item.requiredTools;
     }
-    return { label: item.label ?? `turn-${index + 1}`, text: item.text, requiredTools };
+    if (item.phase !== undefined && !PHASES.includes(item.phase)) fail(`prompts[${index}].phase`, 'unsupported phase');
+    return { label: item.label ?? `turn-${index + 1}`, text: item.text, requiredTools, phase: item.phase ?? 'other' };
   });
 }
 
@@ -141,6 +144,7 @@ export function normalizeRequest(config, raw) {
   }
 
   const workspace = normalizeWorkspace(raw.workspace, raw.cwd);
+  validateWorkflowInputs(raw, config, thought);
   const delivery = normalizeDelivery(raw.delivery, { ...raw, action, workspace });
   return Object.freeze({
     ...raw,

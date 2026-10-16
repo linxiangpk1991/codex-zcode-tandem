@@ -1,5 +1,17 @@
 # Verification and known limits
 
+## 1.4 validation — 2026-10-16
+
+The Windows checkout uses Node 24.19.0 and ACP 0.72.0. Its offline suite contains 167 checks. The first concurrent run passed 166 and exposed a fixture cleanup race: Windows still held the child process's working directory. The corrected fixture waits for that owned child to exit; its focused rerun passed. This was a test cleanup defect, not a failed protocol assertion. GitHub's Windows workflow runs the complete suite on the published candidate.
+
+The public installer was exercised in a separate path containing Chinese characters and spaces. An installation on a nondefault drive required the documented `--zcode-bin` option. The generated entry is named `codex-zcode-tandem`; the existing personal `zcode-native` entry remained unchanged. A real public connection probe read back GLM-5.3 / max / build with ZCode Desktop 3.15.3.8237 and CLI 0.16.9, then cleaned up its owned process. Source and generated skills passed structure validation.
+
+Before porting the shared runtime, the private candidate exercised an actual broken finite-number clamp: implementation fixed it, automatic review inspected final files and reran the test, and handoff stayed blocked until a matching controller test receipt existed. Build and explicitly selected guarded probes both completed. The four-stage sample then ran two actors, three ask nodes and one deterministic test node; the run completed, the test exited 0 and its background notification finished. It used the already repaired fixture, so this does not claim a second bug was found or fixed.
+
+That workflow's final automatic review raised the fixture's out-of-scope NaN behavior and correctly left delivery as `changes_requested`. The controller accepted the runtime exercise without rewriting the model's report. Independent source review found and led to fixes for late response finalization, large-input observation and concurrency binding. Its unapproved read-only shell attempts remain recorded as `needs_attention`; this is not a claim of a clean restricted-tool review run.
+
+Prompt usage is actual reported foreground usage with field coverage, not account billing or a background-actor total. The upstream PowerShell login probe still emits its POSIX fallback warning. This release does not change global shell or ZCode settings. These are same-machine Windows checks; no second-machine, other-OS, visual-design or business-project acceptance is claimed. Older sections below are historical baselines.
+
 ## 1.2 validation — 2026-10-10
 
 The final independent candidate passed the complete offline suite. Added coverage checks unchanged CLI versions with changed hashes, installation changes during inspection, read-only doctor, successful-probe baselines, cheap ordinary-call warnings, GLM provider states and unknown percentages. The official skill validator, relative documentation links and diff checks passed; runner remains 996 lines.

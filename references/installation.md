@@ -4,7 +4,7 @@
 
 ## 1. Prepare Windows and Node
 
-Use **Node 24.19.0**, Windows, and your own installed/signed-in ZCode. The current same-machine connection baseline is Desktop 3.14.5.7961 / native CLI 0.16.9. The launcher rejects other Node versions and platforms instead of silently relaxing the pin.
+Use **Node 24.19.0**, Windows, and your own installed/signed-in ZCode. The current same-machine connection baseline is Desktop 3.15.3.8237 / native CLI 0.16.9. The launcher rejects other Node versions and platforms instead of silently relaxing the pin.
 
 Confirm `node.exe --version` prints `v24.19.0` and `npm.cmd` belongs to that same Node installation. Obtain that release from [Node's official archive](https://nodejs.org/dist/v24.19.0/), if needed.
 
@@ -13,7 +13,7 @@ Clone the [public repository](https://github.com/linxiangpk1991/codex-zcode-tand
 From the source root:
 
 ```powershell
-npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 
@@ -102,4 +102,4 @@ To remove the skill, inspect and remove only its generated codex-zcode-tandem en
 | Entry already exists | Inspect the target and use --replace for the intended update. |
 | Skill missing from Codex | Reload skills/open a new chat; check the discovery directory and active Codex home. |
 | Quota unavailable | Resolve your subscription or wait; there is no automatic paid-channel switch. |
-| ACP_LOGIN_SHELL_FALLBACK | ACP 0.65.1 exposes no supported Windows skip switch. Inspect environment.toolPaths and check project tools using explicit executables/installed dispatchers in the inherited environment. Do not change SHELL or inject Bash to suppress this warning. |
+| ACP_LOGIN_SHELL_FALLBACK | ACP 0.72.0 exposes no supported Windows skip switch. Inspect environment.toolPaths and check project tools using explicit executables/installed dispatchers in the inherited environment. Do not change SHELL or inject Bash to suppress this warning. |

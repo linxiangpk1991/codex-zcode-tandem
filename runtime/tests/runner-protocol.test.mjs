@@ -31,15 +31,17 @@ const DISABLED_POLICY = {
 };
 const ONDEMAND_POLICY = {
   ...DISABLED_POLICY,
-  workflowOverride: { mode: 'onDemand', enabled: true, source: 'override' },
+  workflowOverride: { mode: 'alwaysOn', enabled: true, source: 'override' },
 };
 
 class FakeTransport {
-  constructor({ policy = DISABLED_POLICY, script = [], workflowRuns = [], ipcHandlers = {} } = {}) {
+  constructor({ policy = DISABLED_POLICY, script = [], workflowRuns = [], ipcHandlers = {},
+    modeReadback = null } = {}) {
     this.policy = policy;
     this.script = script;
     this.workflowRuns = workflowRuns;
     this.ipcHandlers = ipcHandlers;
+    this.modeReadback = modeReadback;
     this.handlers = {};
     this.pid = 999_999;
     this.child = { exitCode: null };
@@ -55,12 +57,16 @@ class FakeTransport {
     this.conn = {
       initialize: async () => {
         this.initializeCalls += 1;
-        return { agentInfo: { name: 'zcode-acp-server', version: '0.65.1' } };
+        return { agentInfo: { name: 'zcode-acp-server', version: '0.72.0' } };
       },
       newSession: async () => ({ sessionId: 'sess-1', modes: [], configOptions: [] }),
       resumeSession: async () => ({ modes: [], configOptions: [] }),
-      setSessionConfigOption: async ({ configId, value }) =>
-        ({ configOptions: [{ id: configId, currentValue: value }] }),
+      setSessionConfigOption: async ({ configId, value }) => ({
+        configOptions: [{
+          id: configId,
+          currentValue: configId === 'mode' && this.modeReadback !== null ? this.modeReadback : value,
+        }],
+      }),
       extMethod: async method => ({ method }),
       cancel: async () => { this.cancelCount += 1; },
       prompt: params => {
@@ -660,7 +666,38 @@ test('a wrong policy proof fails before initialize', async () => {
 
 test('a mismatched workflow gate mode is rejected by the proof', () => {
   assert.throws(() => assertPolicyProof(DISABLED_POLICY, { mode: 'build' }, 'onDemand'), /workflow.mode/);
-  assert.equal(assertPolicyProof(ONDEMAND_POLICY, { mode: 'build' }, 'onDemand'), true);
+  assert.equal(assertPolicyProof(ONDEMAND_POLICY, { mode: 'build' }, 'alwaysOn'), true);
+});
+
+// ---------- guarded mode: explicit opt-in, strict effective readback ----------
+
+test('guarded applies and is read back, with the auto-allow boundary recorded', async () => {
+  const run = beginRun({
+    raw: { prompts: ['p1'], mode: 'guarded' },
+    fakeOpts: { policy: { ...DISABLED_POLICY, sessionMode: 'guarded' } },
+  });
+  const { exitCode, report } = await run.task;
+  assert.equal(exitCode, 0);
+  assert.equal(report.status, 'completed');
+  assert.equal(report.modeEffective, 'guarded');
+  assert.equal(report.effectivePolicy.sessionMode, 'guarded');
+  assert.ok(report.warnings.some(w => w.startsWith('MODE_GUARDED_AUTO_ALLOW')),
+    'the degraded callback boundary must be warned, not silent');
+  assert.equal(report.policyCoverage.mode, 'guarded');
+  assert.match(report.policyCoverage.modeBoundary, /post-hoc observation/);
+  assert.match(report.policyCoverage.modeBoundary, /stays active/);
+});
+
+test('a guarded effective-mode fallback fails explicitly before any prompt runs', async () => {
+  const run = beginRun({
+    raw: { prompts: ['p1'], mode: 'guarded' },
+    fakeOpts: { policy: { ...DISABLED_POLICY, sessionMode: 'guarded' }, modeReadback: 'yolo' },
+  });
+  const { exitCode, report } = await run.task;
+  assert.equal(exitCode, 1);
+  assert.match(report.error, /mode selection mismatch: requested guarded, effective yolo/);
+  assert.match(report.error, /session\/create without the mode/);
+  assert.equal(run.fake.promptLog.length, 0, 'no prompt may run under an unrequested mode');
 });
 
 test('a policy_denied arrival-guard event marks the run needs_attention', async () => {
@@ -696,9 +733,11 @@ test('probe action: readbacks without any prompt, reports versions', async () =>
   assert.equal(report.modelEffective, `builtin:bigmodel-coding-plan\\${report.modelRequested}`);
   assert.equal(report.modeEffective, 'build');
   assert.equal(report.thoughtEffective, 'max');
-  assert.equal(report.acpVersion, '0.65.1');
+  assert.equal(report.acpVersion, '0.72.0');
   assert.deepEqual(report.nativeCliVersion, { version: '3.9.9' });
   assert.equal(report.effectivePolicy.sessionMode, 'build');
+  assert.equal(report.policyCoverage.mode, 'build');
+  assert.equal(report.policyCoverage.modeBoundary, null, 'default build mode keeps the callback boundary claim');
   assert.equal(report.nativeIdentity.probeRecord.recorded, false, 'mock transport never establishes a real-source baseline');
 });
 
@@ -818,6 +857,10 @@ test('automatic review executes after implementation and is surfaced in result/s
   assert.equal(report.delivery.status, 'ready_for_controller_review');
   assert.equal(report.summary.delivery.status, report.delivery.status);
   assert.equal(readJsonFile(run.progressPath).delivery.status, report.delivery.status);
+  assert.equal(report.metrics.stages.review.turns, 1);
+  assert.equal(report.metrics.firstPass.source, 'model_reported');
+  assert.deepEqual(report.metrics, report.summary.metrics);
+  assert.deepEqual(report.metrics, readJsonFile(run.progressPath).metrics);
 });
 
 test('an end_turn without review evidence exits 4, not successful handoff', async () => {
@@ -856,4 +899,70 @@ test('pause cannot skip review; a resumed request gets a fresh review turn', asy
   await waitFor(() => resumed.fake.promptLog.length === 2);
   emitReview(resumed); resumed.fake.resolvePrompt(resumed.fake.promptLog[1]);
   assert.equal((await resumed.task).exitCode, 0);
+});
+
+test('prompt response usage is charged once; session hints and replay are not billing', async () => {
+  const run = beginRun({ raw: { prompts: [{ text: 'fix', phase: 'repair' }] }, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  const notify = run.fake.handlers.turnState;
+  notify({ sessionId: 'foreign', running: false, usage: { totalTokens: 99999 } });
+  assert.equal(readJsonFile(run.progressPath).nativeActivity, undefined);
+  notify({ sessionId: 'sess-1', running: false, usage: { totalTokens: 99999 }, turnMs: 222 });
+  run.fake.pending[0].resolve({ stopReason: 'end_turn', usage: { totalTokens: 20, inputTokens: 12, outputTokens: 8 } });
+  const { report } = await run.task;
+  assert.equal(report.metrics.total.tokens.totalTokens, 20);
+  assert.equal(report.metrics.stages.repair.turns, 1);
+  assert.equal(report.turns[0].metrics.nativeTurnMs, null);
+  notify({ sessionId: 'sess-1', running: false, usage: { totalTokens: 8888 } });
+  assert.deepEqual(report.metrics, readJsonFile(run.progressPath).metrics);
+  assert.equal(report.metrics.total.turns, 1);
+});
+
+test('rejected prompt has one incomplete turn and unavailable usage', async () => {
+  const run = beginRun({ raw: { prompts: [{ text: 'fix', phase: 'repair' }] }, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  run.fake.pending[0].reject(new Error('native failure'));
+  const { report } = await run.task;
+  assert.equal(report.status, 'failed');
+  assert.equal(report.metrics.total.turns, 1);
+  assert.equal(report.metrics.stages.repair.incomplete, 1);
+  assert.equal(report.metrics.total.tokens.totalTokens, null);
+  assert.equal(report.turns[0].metrics.outcome, 'failed');
+});
+
+test('large workflow input is observed before report compaction', async () => {
+  const script = '/*' + 'x'.repeat(40000) + '*/ return 1;';
+  const run = beginRun({ raw: { prompt: 'launch', nativeWorkflow: true,
+    approvedWorkflowSha256: createHash('sha256').update(script).digest('hex'),
+    approvedWorkflowModel: 'account:bigmodel-individual-coding-plan/GLM-5.3$max' },
+    fakeOpts: { policy: ONDEMAND_POLICY, script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  run.fake.emitUpdate({ sessionUpdate: 'tool_call', toolCallId: 'large-workflow', status: 'completed',
+    title: 'CreateWorkflow', _meta: { claudeCode: { toolName: 'CreateWorkflow' } },
+    rawInput: { script, subagent_model: 'GLM-5.3$max' } });
+  run.fake.resolvePrompt('launch');
+  const { report } = await run.task;
+  assert.equal(report.workflowObservations[0].matched, true);
+  assert.equal(report.tools[0].rawInput.truncated, true);
+  assert.equal(report.needsAttention, false);
+});
+
+test('late successful prompt after deadline cannot rewrite final result or double-record a turn', async () => {
+  const run = beginRun({ raw: { prompt: 'slow', timeoutSeconds: 1 }, fakeOpts: { script: ['hold'] } });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  run.fake.emitUpdate({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'partial' } });
+  run.fake.dispose = async () => {
+    run.fake.child.exitCode = 0;
+    setTimeout(() => run.fake.pending[0].resolve({ stopReason: 'end_turn', usage: { totalTokens: 999 } }), 50);
+    return { code: 0, signal: null };
+  };
+  const { report } = await run.task;
+  const saved = readJsonFile(run.resultPath);
+  assert.equal(saved.status, 'timeout');
+  assert.equal(saved.incomplete, undefined);
+  assert.equal(saved.turns.length, 1);
+  assert.equal(saved.response, 'partial');
+  assert.equal(saved.metrics.total.turns, 1);
+  assert.equal(saved.metrics.total.tokens.totalTokens, null);
+  assert.deepEqual(saved.metrics, report.metrics);
 });

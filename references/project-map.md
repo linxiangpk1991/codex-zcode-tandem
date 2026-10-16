@@ -13,6 +13,9 @@ control.mjs writes invocation-bound commands; inbox.mjs validates and consumes t
 | Module | Responsibility |
 | --- | --- |
 | runner | Effective configuration, ordered phases, control queue, questions, background wait and cleanup |
+| acp-contract / session-config | Pinned ACP version, supported modes, and effective model/mode/thought readback |
+| turns / metrics | Prompt lifecycle, finalization, phase timing and reported usage coverage |
+| workflow-contract | Shared validation of script bytes, expanded path bodies, args, model bindings and explicit concurrency |
 | bridge | Upstream instance access, notification boundary, workflow management and PID observation |
 | native-guards / policy | Tool scope and script/model/run binding |
 | workflow-observation | Checks actual tool input; observation is not a sandbox |

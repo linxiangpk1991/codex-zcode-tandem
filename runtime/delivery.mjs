@@ -57,7 +57,7 @@ export function normalizeDelivery(raw, request) {
 
 export function withDeliveryReview(prompts, delivery) {
   if (prompts.some(p => p.label === REVIEW_LABEL || p.deliveryReview)) throw new Error('Reserved delivery review phase');
-  return delivery ? [...prompts, { label: REVIEW_LABEL, text: '', requiredTools: [], deliveryReview: true }] : prompts;
+  return delivery ? [...prompts, { label: REVIEW_LABEL, phase: 'review', text: '', requiredTools: [], deliveryReview: true }] : prompts;
 }
 
 export function reviewPrompt(request) {

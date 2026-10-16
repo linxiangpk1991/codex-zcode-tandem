@@ -8,7 +8,7 @@
 
 支持 Windows、Node 24.19.0。执行入口是 runtime/run-task.mjs REQUEST.json，控制入口是 runtime/control.mjs PROGRESS.json COMMAND.json。尚未安装或找不到原生引擎时，阅读 [安装与排障](installation.md)，先运行 scripts/setup.mjs --check。
 
-ACP 精确锁定 zcode-acp-server 0.65.1。每次调用使用隔离配置，不修改 ZCode 桌面全局设置。验证结果和限制见 [验收说明](acceptance.md)。
+ACP 精确锁定 zcode-acp-server 0.72.0。每次调用使用隔离配置，不修改 ZCode 桌面全局设置。验证结果和限制见 [验收说明](acceptance.md)。
 
 桌面更新后，运行只读 `setup --doctor` 比较桌面/CLI/ACP 版本及原生入口 SHA256；CLI 版本不变不代表源码未变。快速 `setup --check` 使用元数据及上次成功 probe 缓存，普通任务不重复启动版本命令或哈希。成功 probe 只记录连接兼容性，不证明真实推理或任务验收。
 
@@ -63,3 +63,6 @@ action=probe 可在无模型推理的情况下检查连接和实际配置。推�
 默认 GLM-5.3/max，Flash 只在明确选择时使用。编辑/执行请求须声明 workspace 的负责路径、保留路径及完整已审命令；没有声明会被拒绝。先读 [工作区与验证回执](execution-safety.zh-CN.md)。
 
 总控准备独立基线，不让 ZCode 自行收起共享修改或删除 worktree。权限回调不是操作系统沙箱，原生已允许、恢复或后台调用可能不发回调。用真实执行器回执判断测试，completed 不等于 pass。summaryFile 提供摘要；纠偏记录区分排队和执行时间。升级不能热替换其他调用正在用的文件，旧调用继续使用原入口。
+
+
+提示可声明 phase（implementation/review/repair/validation/other）。比较用量前读取 metrics 字段覆盖数；未知不是零。工作流参数、角色映射及显式并发值须匹配已审请求，详见[统计](metrics.zh-CN.md)与[工作流](native-workflows.zh-CN.md)。

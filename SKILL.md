@@ -9,7 +9,7 @@ Use the native ZCode engine and the user's own Coding Plan. Preserve their chose
 
 This file's directory is the source root. The installed pointer records its actual location and Node executable. Resolve runtime/ and references/ from this source root, not from the user's project. Never borrow another person's paths or account.
 
-Windows and Node 24.19.0 are required; ACP is pinned to 0.65.1. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
+Windows and Node 24.19.0 are required; ACP is pinned to 0.72.0. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
 
 ## First-pass review before handoff
 
@@ -60,3 +60,6 @@ After interruption, retain the original session/cwd and continue only unfinished
 Report changed behavior/files, actual commands and results, session/run identifiers and remaining limitations. A configured 90-minute deadline is not an endurance-test result. See [verification](references/acceptance.md).
 
 Wait for active invocations to finish before replacing their runtime files. Prepare candidates in separate version directories; never stop another owner's task. Keep old invocations on their original runtime/control entry. Existing changed entries need setup --replace, which backs up the old entry. The public skill codex-zcode-tandem and a private zcode-native installation are separate; never overwrite one to update the other.
+
+
+Prompts may declare a phase (implementation/review/repair/validation/other). Read metrics coverage before comparing costs; missing usage is unknown. Workflow args, role mappings and explicit concurrency must match the reviewed request. See [metrics](references/metrics.md) and [native workflows](references/native-workflows.md).

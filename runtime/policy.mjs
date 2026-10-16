@@ -11,9 +11,8 @@
 //                   answerable through the generic answer action, never
 //                   session-exempted (allowSession would bypass the binding
 //                   checks on later calls).
-import { createHash } from 'node:crypto';
 import { workspaceDecision } from './workspace-policy.mjs';
-import { readWorkflowScript, canonicalWorkflowModel } from './workflow-observation.mjs';
+import { inspectWorkflowBinding } from './workflow-contract.mjs';
 
 /** ACP kinds for well-known native tools (V2 parity). */
 export const KIND_BY_TOOL = Object.freeze({
@@ -55,13 +54,7 @@ export function classifyPermissionRequest(p, lookupToolCall) {
 
 /** Exact script hash and model; path inputs use the same reader as observation. */
 export function workflowApproved(request, input) {
-  try {
-    const { script } = readWorkflowScript(input, request.cwd ?? process.cwd());
-    const hash = createHash('sha256').update(script).digest('hex');
-    return hash === request.approvedWorkflowSha256
-      && typeof request.approvedWorkflowModel === 'string'
-      && canonicalWorkflowModel(input.subagent_model) === request.approvedWorkflowModel;
-  } catch { return false; }
+  return inspectWorkflowBinding(request, input).matched;
 }
 
 /** ResumeWorkflowRun is bound to the request's exact workflowRunId. */
@@ -84,7 +77,7 @@ export function decideToolPermission({ request, nativeName, acpKind, rawInput })
     return {
       allowed,
       reason: allowed ? 'approved workflow binding' : !scriptApproved
-        ? 'workflow script/model binding mismatch' : 'amend predecessor run ID mismatch',
+        ? 'workflow script/model/args/model_bindings mismatch' : 'amend predecessor run ID mismatch',
       binding: nativeName,
     };
   }

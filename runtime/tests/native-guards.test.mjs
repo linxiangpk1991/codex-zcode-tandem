@@ -57,8 +57,8 @@ test('a tampered workflow script is denied at arrival, before any auto-allow', (
     params: { toolName: 'CreateWorkflow', input: { script: `${script}#tampered`, subagent_model: 'GLM-5.3-Flash' } },
   });
   assert.equal(consumed, true, 'the guard consumes the request');
-  assert.deepEqual(backend.replies, [{ id: 7, result: { decision: 'deny', reason: 'Controller workflow binding mismatch' } }]);
-  assert.deepEqual(events, [{ type: 'policy_denied', toolName: 'CreateWorkflow', reason: 'Controller workflow binding mismatch' }]);
+  assert.deepEqual(backend.replies, [{ id: 7, result: { decision: 'deny', reason: 'Controller workflow binding mismatch: workflow script/model/args/model_bindings mismatch' } }]);
+  assert.deepEqual(events, [{ type: 'policy_denied', toolName: 'CreateWorkflow', reason: 'Controller workflow binding mismatch: workflow script/model/args/model_bindings mismatch' }]);
   assert.deepEqual(backend.handled, [], 'upstream handler never sees the denied request');
 });
 

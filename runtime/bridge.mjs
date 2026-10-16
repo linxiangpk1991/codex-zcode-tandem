@@ -1,6 +1,6 @@
 // bridge.mjs — the spawned ACP bridge adapter (child of run-task.mjs).
 //
-// Upstream zcode-acp-server 0.65.1 owns transport and inference end to end;
+// Upstream zcode-acp-server 0.72.0 owns transport and inference end to end;
 // this file adds ONLY the seams a headless controller needs, using upstream's
 // own modules rather than reimplementing v4 business rules:
 //   1. effective-policy proof: the isolated XDG_CONFIG_HOME config read back

@@ -38,7 +38,7 @@ export class ProgressTracker {
         bytesScope: 'not measured; event count is not token or network usage' },
       controls: { queue: [], history: [] },
       pendingInput: null,
-      workflow: { mode: request.nativeWorkflow || request.waitForBackground ? 'onDemand' : 'disabled', runs: {}, notificationState: null },
+      workflow: { mode: request.nativeWorkflow || request.waitForBackground ? 'alwaysOn' : 'disabled', runs: {}, notificationState: null },
       backgroundTasks: [],
       replay: { chars: 0, truncated: false },
       evidence: {

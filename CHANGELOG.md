@@ -1,5 +1,15 @@
 # Changelog / 更新记录
 
+## 1.4.0 — 2026-10-16
+
+ACP is pinned to 0.72.0 for ZCode 3.15.3. Foreground prompt responses now provide stage usage, elapsed time and model-reported review counts without guessing missing tokens. Workflow checks bind args, role model mappings and explicit concurrency, and verify expanded native path inputs. Explicit workflows expose their tools locally; normal tasks remain disabled. A reusable implementation/review/repair/test sample is included. Fixes cover late response finalization and large input observation before log compaction. Headless installation omits upstream optional desktop packages.
+
+ACP 升至 0.72.0，适配 ZCode 3.15.3。前台提示按阶段记录真实用量、耗时和模型声明的首审数量，不估算缺失 Token。工作流绑定参数、角色映射、显式并发值，并校验原生展开后的路径脚本；明确请求时才在本次调用暴露工具。增加实现、独立审查、修复、测试示例，修正迟到响应覆盖最终结果及大输入压缩后误判。无界面安装跳过上游可选桌面组件。
+
+Compatibility: callers using path arguments must declare approvedWorkflowArgs; custom model bindings and explicit max_concurrency also need their matching approval fields. Unresolved saved names remain unsupported. Build stays the default; guarded is opt-in. Private and public installations remain separate.
+
+兼容变化：路径参数、角色映射及显式并发值须提供对应批准字段；saved 名称需先解析为明确路径。默认仍为 build，guarded 按需选择。自用和公开安装入口保持独立。
+
 ## 1.3.0 — 2026-10-10
 
 Implementation requests automatically append a final review/repair turn. A structured review and current source-bound test receipts determine handoff readiness, independently of native completion. Pause, late steering, changed candidates, missing checks and open findings cannot produce a ready handoff. Browser functional paths use declared evidence; visual acceptance remains with the controller. `check-evidence.mjs handoff` rechecks controller-run validation without new inference. **Compatibility:** callers must handle exit 4 (invocation ended, handoff pending); existing read-only calls remain unchanged.

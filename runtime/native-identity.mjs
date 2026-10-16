@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { writeJsonAtomic } from './jsonio.mjs';
 import { probeNativeCliVersion } from './transport.mjs';
+import { PINNED_ACP_VERSION } from './acp-contract.mjs';
 
 export const identityCachePath = root => join(root, 'work', 'native-identity.json');
 
@@ -99,7 +100,7 @@ export async function collectNativeIdentity(root, paths, { cliProbe = probeNativ
 }
 
 export function rememberCompatibilityProbe(root, identity, { model, thought, mode } = {}) {
-  if (identity.status !== 'available' || identity.acpVersion !== '0.65.1') {
+  if (identity.status !== 'available' || identity.acpVersion !== PINNED_ACP_VERSION) {
     return { recorded: false, reason: 'Complete stable CLI and pinned ACP identity unavailable.' };
   }
   const now = localFiles(root, { zcodeBin: identity.nativePath });

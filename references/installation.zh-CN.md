@@ -2,7 +2,7 @@
 
 [English](installation.md) · [返回首页](../README.zh-CN.md)
 
-本版支持 Windows，固定 Node 24.19.0 和 ACP 0.65.1。可独立安装，不要求本机有作者的其他技能。使用者必须先安装 ZCode 并登录自己的 Coding Plan。
+本版支持 Windows，固定 Node 24.19.0 和 ACP 0.72.0。可独立安装，不要求本机有作者的其他技能。使用者必须先安装 ZCode 并登录自己的 Coding Plan。
 
 ## 1. 准备环境
 
@@ -13,7 +13,7 @@
 在源码目录执行：
 
 ```powershell
-npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 
@@ -59,7 +59,7 @@ node.exe scripts/setup.mjs --check
 
 成功且安装身份稳定的 probe 将连接配置与身份写入本源码目录的 `work/native-identity.json`；失败、清理未确认或安装变化不会刷新通过基线。缓存不读取凭据。自定义布局找不到相邻 `ZCode.exe` 时桌面版本为 null，并说明原因。
 
-ACP 0.65.1 没有受支持的 Windows 跳过入口，POSIX 登录探针失败仍显示 `ACP_LOGIN_SHELL_FALLBACK`。查看 `environment.toolPaths`，用项目工具的绝对可执行文件或已安装 dispatcher 检查继承环境；不要改 SHELL 或注入 Bash 来消除警告。
+ACP 0.72.0 没有受支持的 Windows 跳过入口，POSIX 登录探针失败仍显示 `ACP_LOGIN_SHELL_FALLBACK`。查看 `environment.toolPaths`，用项目工具的绝对可执行文件或已安装 dispatcher 检查继承环境；不要改 SHELL 或注入 Bash 来消除警告。
 
 通过仅代表路径、版本和依赖存在，不证明登录、额度或原生连接。用无模型推理的 probe 验证：
 

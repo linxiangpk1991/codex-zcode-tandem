@@ -33,7 +33,7 @@ These fields extend a normal request:
 }
 ```
 
-This is a template, not a runnable complete request: add absolute cwd/output paths, model, thought=max, mode=build, allowed tools and deadline. Replace the hash with the actual value. All actors share the bound model. Separate contexts do not imply tool isolation; a read-only prompt alone does not enforce read-only access. Declare roles explicitly and do not recursively add workers.
+This is a template, not a runnable complete request: add absolute cwd/output paths, model, thought=max, mode=build, allowed tools and deadline. Replace the hash with the actual value and bind any nonempty args. Actors use the bound default model unless the reviewed script and approved role bindings specify otherwise. Separate contexts do not imply tool isolation; a read-only prompt alone does not enforce read-only access. Declare roles explicitly and do not recursively add workers.
 
 ## Run, observe and recover
 
@@ -54,3 +54,13 @@ Ordinary launch/readback phases still require terminal native state and a comple
 For an amendment, retain the conversation, bind the reviewed new script/model/predecessor, and require an actual AmendWorkflow call. Inspect cache hits and node events. Reusing a cached test node does not mean the test was rerun.
 
 Global auto-resume, unattended scheduling and paid fallback are not enabled. See [verification](acceptance.md) for what was actually exercised.
+
+## 1.4: reviewed inputs and a reusable workflow
+
+Bind exact `approvedWorkflowArgs`, `approvedWorkflowModelBindings`, and, only when an explicit concurrency is wanted, `approvedWorkflowMaxConcurrency` (1..4). Keys in JSON objects may be reordered; values and array order must match. An omitted approval allows only empty args/model bindings, not arbitrary inputs. Role bindings must use a configured Coding Plan model at the requested thought level.
+
+Native permission inputs expand a path to its body. Tandem checks the whole file hash, the exact expanded body and its metadata line offset. Unresolved `saved` names must first become a reviewed local path. Unknown additional fields are rejected. `model_bindings` is an internal native extension, not a promise that the model-facing tool exposes a role mapping editor. Inline model declarations still require full script review.
+
+An explicitly requested native workflow exposes its tools through invocation-local `alwaysOn`; ordinary tasks keep workflows disabled. This neither changes desktop settings nor starts a workflow without the script binding. `guarded` is an explicit opt-in; `build` remains the default and Auto-review is not code review.
+
+[review-workflow.ts](review-workflow.ts) runs implementation, a fresh review actor, targeted repair and a deterministic Node test. Review the task, owned/preserved files, test path and resolved Node runtime before hashing the script and approving args. Changing a command changes the reviewed artifact. Actor personas are not a read-only sandbox; do not use this sample for production writes or publishing. Cached node results are not newly executed tests.

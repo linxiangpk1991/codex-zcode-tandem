@@ -71,7 +71,7 @@
 
 ## 启动诊断与紧凑结果
 
-ACP 0.65.1 的环境探针使用 POSIX 的 `-l -c env -0`。当 SHELL 指向 PowerShell/pwsh 时可能失败并继承当前环境；这里保留上游 stderr，同时报告 `ACP_LOGIN_SHELL_FALLBACK`。没有改写上游依赖或全局 PATH。原生会话成功只证明引擎能启动，项目 Python、构建工具仍要检查。子进程显式使用 Python UTF-8，避免中文输出受本机 GBK 默认值影响。
+ACP 0.72.0 的环境探针使用 POSIX 的 `-l -c env -0`。当 SHELL 指向 PowerShell/pwsh 时可能失败并继承当前环境；这里保留上游 stderr，同时报告 `ACP_LOGIN_SHELL_FALLBACK`。没有改写上游依赖或全局 PATH。原生会话成功只证明引擎能启动，项目 Python、构建工具仍要检查。子进程显式使用 Python UTF-8，避免中文输出受本机 GBK 默认值影响。
 
 `summaryFile` 可指定单独摘要文件，包含状态、测试结论、最近控制记录和证据边界；详情继续留在 `resultFile`。`previewTruncated` 表示单回合预览只保留前 2000 字符，兼容旧字段 `truncated`。`evidence.*Truncated` 才说明对应完整记录的保留边界。未统计的传输字节是 `null`。
 

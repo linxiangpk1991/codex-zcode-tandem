@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConfig, buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from '../config.mjs';
+import { ISOLATED_SESSION_MODES, PINNED_ACP_VERSION, modeMismatchError } from '../acp-contract.mjs';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'zcode-v3-config-test-'));
@@ -35,6 +36,8 @@ test('defaults are coherent and absolute paths resolve', () => {
   assert.equal(config.defaultModel, 'GLM-5.3');
   assert.equal(config.defaultThought, 'max');
   assert.equal(config.defaultMode, 'build');
+  assert.deepEqual(config.modes, ['plan', 'build', 'edit', 'guarded'],
+    'guarded is an explicit opt-in; yolo/auto stay out of the default vocabulary');
   assert.equal(config.provider, 'builtin:bigmodel-coding-plan');
   assert.deepEqual(config.models, ['GLM-5.3', 'GLM-5.3-Flash']);
   assert.equal(config.maxTimeoutSeconds, 7200);
@@ -68,8 +71,8 @@ test('provider/models/thought pins cannot be overridden', () => {
 
 test('workflow gate mode follows nativeWorkflow/waitForBackground only', () => {
   assert.equal(workflowModeForRequest({ nativeWorkflow: false, waitForBackground: false }), 'disabled');
-  assert.equal(workflowModeForRequest({ nativeWorkflow: true }), 'onDemand');
-  assert.equal(workflowModeForRequest({ waitForBackground: true }), 'onDemand');
+  assert.equal(workflowModeForRequest({ nativeWorkflow: true }), 'alwaysOn');
+  assert.equal(workflowModeForRequest({ waitForBackground: true }), 'alwaysOn');
 });
 
 test('isolated ACP config uses upstream schema keys and rejects invalid ones', () => {
@@ -85,6 +88,16 @@ test('isolated ACP config uses upstream schema keys and rejects invalid ones', (
   assert.throws(() => buildIsolatedAcpConfig({ workflowMode: 'onDemand', sessionMode: 'vibes' }), /session mode/);
 });
 
+test('isolated config pins the guarded opt-in; upstream vocabulary and mismatch text stay pinned', () => {
+  const isolated = buildIsolatedAcpConfig({ workflowMode: 'disabled', sessionMode: 'guarded' });
+  assert.deepEqual(isolated.json.session, { mode: 'guarded' });
+  assert.deepEqual(ISOLATED_SESSION_MODES, ['plan', 'build', 'edit', 'guarded', 'yolo', 'auto']);
+  assert.equal(PINNED_ACP_VERSION, '0.72.0');
+  assert.match(modeMismatchError('guarded', 'yolo'), /requested guarded, effective yolo/);
+  assert.match(modeMismatchError('guarded', 'yolo'), /session\/create without the mode/);
+  assert.equal(modeMismatchError('build', 'plan'), 'mode selection mismatch: requested build, effective plan');
+});
+
 test('child env pins engine/provider, isolates XDG, carries bindings, preserves disallowedTools', () => {
   const config = buildConfig({}, {});
   const paths = resolvePaths(config);
@@ -94,6 +107,9 @@ test('child env pins engine/provider, isolates XDG, carries bindings, preserves 
     disallowedTools: ['WebSearch', 'CronDelete'],
     approvedWorkflowSha256: 'a'.repeat(64),
     approvedWorkflowModel: 'GLM-5.3-Flash',
+    approvedWorkflowArgs: { task: 'bounded' },
+    approvedWorkflowModelBindings: { reviewer: 'account:bigmodel-individual-coding-plan/GLM-5.3$max' },
+    approvedWorkflowMaxConcurrency: 2,
     workflowRunId: 'run-42',
   }, xdg);
   assert.equal(env.ZCODE_BIN, paths.zcodeBin);
@@ -106,6 +122,9 @@ test('child env pins engine/provider, isolates XDG, carries bindings, preserves 
   assert.deepEqual(JSON.parse(env.CODEX_ZCODE_BINDINGS), {
     approvedWorkflowSha256: 'a'.repeat(64),
     approvedWorkflowModel: 'GLM-5.3-Flash',
+    approvedWorkflowArgs: { task: 'bounded' },
+    approvedWorkflowModelBindings: { reviewer: 'account:bigmodel-individual-coding-plan/GLM-5.3$max' },
+    approvedWorkflowMaxConcurrency: 2,
     workflowRunId: 'run-42',
   });
   for (const key of ['ANTHROPIC_API_KEY', 'ZCODE_BASE_URL', 'ZCODE_ENDPOINT_ORIGIN', 'ZCODE_ACP_REMOTE',

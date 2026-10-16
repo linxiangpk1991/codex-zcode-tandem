@@ -13,7 +13,7 @@ test('V2 fields keep working: prompt shorthand, defaults, arrays', () => {
   assert.equal(r.thought, 'max');
   assert.equal(r.mode, 'build');
   assert.equal(r.timeoutSeconds, config.defaultTimeoutSeconds);
-  assert.deepEqual(r.prompts, [{ label: 'turn-1', text: 'do the thing', requiredTools: [] }]);
+  assert.deepEqual(r.prompts, [{ label: 'turn-1', text: 'do the thing', requiredTools: [], phase: 'other' }]);
   assert.deepEqual(r.allowToolKinds, []);
   assert.deepEqual(r.disallowedTools, []);
   assert.equal(r.idleSeconds, 0);
@@ -24,12 +24,12 @@ test('prompts as strings or objects normalize with labels and requiredTools', ()
   const items = normalizePromptItems({
     prompts: [
       'plain',
-      { text: 'labeled', label: 'custom', requiredTools: ['Bash'] },
+      { text: 'labeled', label: 'custom', requiredTools: ['Bash'], phase: 'other' },
     ],
   });
   assert.deepEqual(items, [
-    { label: 'turn-1', text: 'plain', requiredTools: [] },
-    { label: 'custom', text: 'labeled', requiredTools: ['Bash'] },
+    { label: 'turn-1', text: 'plain', requiredTools: [], phase: 'other' },
+    { label: 'custom', text: 'labeled', requiredTools: ['Bash'], phase: 'other' },
   ]);
 });
 
@@ -38,6 +38,8 @@ test('unsupported config is rejected before spawning', () => {
     [{ ...base, model: 'GLM-9' }, /model/],
     [{ ...base, prompt: 'x', thought: 'ultra' }, /thought/],
     [{ ...base, prompt: 'x', mode: 'vibes' }, /mode/],
+    [{ ...base, prompt: 'x', mode: 'yolo' }, /mode/],
+    [{ ...base, prompt: 'x', mode: 'auto' }, /mode/],
     [{ ...base, prompt: 'x', timeoutSeconds: 99999 }, /timeoutSeconds/],
     [{ ...base, prompt: 'x', timeoutSeconds: 0 }, /timeoutSeconds/],
     [{ ...base, prompt: 'x', idleSeconds: 121 }, /idleSeconds/],
@@ -52,6 +54,12 @@ test('unsupported config is rejected before spawning', () => {
   for (const [raw, pattern] of cases) {
     assert.throws(() => normalizeRequest(config, raw), pattern, JSON.stringify(raw));
   }
+});
+
+test('guarded is an accepted explicit mode; the default stays build', () => {
+  const r = normalizeRequest(config, { ...base, prompt: 'x', mode: 'guarded' });
+  assert.equal(r.mode, 'guarded');
+  assert.equal(normalizeRequest(config, { ...base, prompt: 'x' }).mode, 'build');
 });
 
 test('prompt and prompts are mutually exclusive; run needs at least one prompt', () => {
