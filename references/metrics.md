@@ -15,3 +15,5 @@ Tokens come only from the corresponding ACP `PromptResponse.usage`. `reportedByF
 Native `turnState` notifications have no turn ID and also cover context compaction. Tandem subscribes to one alias and uses it only as session activity, so `nativeTurnMs` remains `null`. Background actor usage is outside foreground prompt coverage. Shared-account quota snapshots are not task billing.
 
 `firstPass` counts fixed/open issues declared by the model and labels them `model_reported`. Later steering invalidates that declaration. `controllerFindings` stays `null` when no controller findings were collected; no quality improvement rate is invented.
+
+Independent reviewer usage is recorded in qualityLoop.reviews[].metrics and is not included in parent metrics.total. Each review has its own session ID and result file.

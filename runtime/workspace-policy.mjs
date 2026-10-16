@@ -97,6 +97,10 @@ export function workspaceDecision(request, nativeName, rawInput) {
       if ([lexical, target].some(p => !inside(root, p) || relative(root, p).split(sep).some(s => s.toLowerCase() === '.git'))) {
         return deny('edit escapes workspace or targets Git metadata');
       }
+      const evidencePaths = (request.verification ?? []).flatMap(check => [check.preparedFile, check.receiptFile]);
+      if (evidencePaths.some(file => inside(canonical(resolve(file)), target))) {
+        return deny('verification inputs and receipts belong to the controller/runtime');
+      }
       if (scope.preservedPaths.some(p => inside(canonical(resolve(root, p)), target))) return deny('edit targets a preserved path');
       if (!scope.ownedPaths.some(p => inside(canonical(resolve(root, p)), target))) return deny('edit is outside owned paths');
     }

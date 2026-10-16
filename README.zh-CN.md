@@ -14,6 +14,8 @@ Tandem 是一个 **Windows 上的 Codex 技能，通过 ACP（Agent Client Proto
 
 ## 它能帮你做什么
 
+**1.5 新增：** 每次开发交接默认执行独立复审：新建只读会话检查候选，原开发会话修复问题，执行已授权测试，再由新会话复核。最多两轮修复；问题未解决或验证缺失就不能交付。不再需要复制工作流示例或额外开启开关。[默认复审闭环](references/delivery.zh-CN.md)
+
 **1.4 新增：** 适配 ZCode 3.15.3 / ACP 0.72.0，按回合和阶段记录实际用量、耗时；工作流绑定参数、模型映射及显式并发值，并提供独立审查示例。超时后的迟到响应不会覆盖最终结果。[用量与覆盖范围](references/metrics.zh-CN.md) · [原生审查流程](references/native-workflows.zh-CN.md)
 
 **1.3 新增：** 实现任务自动补首审与修复，交付状态独立于模型结束。缺测试、证据过期、首审后又纠偏，都不能算可交付。功能检查交给测试工具，视觉验收交给总控。调用脚本需要适配退出码 4。[交付流程与恢复](references/delivery.zh-CN.md)
@@ -61,7 +63,10 @@ node.exe scripts/setup.mjs --zcode-bin 'D:/Apps/ZCode/resources/glm/zcode.cjs'
 flowchart LR
   U["你：目标与反馈"] --> C["Codex：拆定范围、复核结果"]
   C -->|"通过 ACP 交付任务"| Z["原生 ZCode：实现与测试"]
-  Z -->|"进度、问题、结果"| C
+  Z --> R["全新会话独立复审"]
+  R -->|"问题交回修复"| Z
+  R --> V["已授权验证与再次独立复核"]
+  V -->|"就绪后交接"| C
   C -->|"排队提交补充要求"| Z
   Z --> F["项目文件"]
   C -->|"检查实际 diff 与测试"| F

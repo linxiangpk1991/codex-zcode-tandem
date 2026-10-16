@@ -85,4 +85,6 @@ Use coherent plan/compatibility, implementation, test and review phases so steer
 
 ## Required final review
 
-Implementation requests automatically append a final review/repair turn. Intermediate self-review prompts are optional. Declare candidate files, relevant functional paths and verification receipts as described in [delivery](delivery.md). Do not claim that model completion or self-review is independent acceptance. Validate the shortest core flow before widening the task.
+Implementation requests automatically enter fresh independent review, bounded repair and verification. Intermediate self-review prompts are optional. Declare candidate files, relevant functional paths and authorized check plans as described in [delivery](delivery.md). Model completion alone is not final acceptance. Validate the shortest core flow before widening the task.
+
+The runner supplies the final fresh reviewer. The controller must declare candidate files, functional paths and exact authorized check plans. Developer self-review does not substitute for the default independent gate.

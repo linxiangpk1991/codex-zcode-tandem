@@ -49,3 +49,5 @@ No. Public Tandem installs as codex-zcode-tandem. It has a separate source root 
 ## How do I report a bug?
 
 Open an issue with versions, a small reproduction, expected/actual behavior and a redacted error excerpt. Do not upload complete native sessions, login files or private project data. See [security](../SECURITY.md) for sensitive reports.
+
+Is independent review enabled by default? Yes, for development requests from 1.5. A fresh native session reviews each candidate. Failed findings or checks cannot become a ready handoff; two unsuccessful repair rounds return a blocker. Read-only queries skip this loop.

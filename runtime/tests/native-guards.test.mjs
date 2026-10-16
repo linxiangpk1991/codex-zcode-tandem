@@ -25,6 +25,7 @@ function makeBackend() {
       this.handled = [];
     }
     sendReply(id, result) { this.replies.push({ id, result }); }
+    request(...args) { this.handled.push(args); return 'rpc-result'; }
   }
   FakeBackend.prototype.startWatchdog = function startWatchdog() {
     this.handled.push(['watchdog']);
@@ -36,12 +37,12 @@ function makeBackend() {
   return FakeBackend;
 }
 
-function install({ platform = 'win32' } = {}) {
+function install({ platform = 'win32', disallowedTools = [], nativeToolAllowlist } = {}) {
   const Backend = makeBackend();
   const events = [];
   installNativeGuards(Backend, {
     send: m => events.push(m),
-    request: BINDINGS,
+    request: { ...BINDINGS, disallowedTools, nativeToolAllowlist },
     isPermissionRequest: method => method === 'interaction/requestPermission',
     platform,
   });
@@ -60,6 +61,45 @@ test('a tampered workflow script is denied at arrival, before any auto-allow', (
   assert.deepEqual(backend.replies, [{ id: 7, result: { decision: 'deny', reason: 'Controller workflow binding mismatch: workflow script/model/args/model_bindings mismatch' } }]);
   assert.deepEqual(events, [{ type: 'policy_denied', toolName: 'CreateWorkflow', reason: 'Controller workflow binding mismatch: workflow script/model/args/model_bindings mismatch' }]);
   assert.deepEqual(backend.handled, [], 'upstream handler never sees the denied request');
+});
+
+test('turn disallow rules survive ACP forwarding and merge without weakening existing rules', () => {
+  const { Backend } = install({ disallowedTools: ['Bash', 'Edit'] });
+  const backend = new Backend();
+  const params = { sessionId: 's', content: 'review', toolDenylist: ['Write', 'Bash'] };
+  assert.equal(backend.request(1, 'session/send', params, 123), 'rpc-result');
+  assert.deepEqual(backend.handled[0], [1, 'session/send', {
+    ...params, toolDenylist: ['Write', 'Bash', 'Edit'],
+  }, 123]);
+  assert.deepEqual(params.toolDenylist, ['Write', 'Bash'], 'caller input is not mutated');
+  backend.request(2, 'session/read', params, 456);
+  assert.equal(backend.handled[1][2], params, 'unrelated RPCs are unchanged');
+});
+
+test('independent session create and resume expose only approved native read tools', () => {
+  const { Backend } = install({ disallowedTools: ['Bash'], nativeToolAllowlist: ['Read', 'Grep', 'Glob'] });
+  const backend = new Backend();
+  backend.request(1, 'session/create', { cwd: 'example' });
+  assert.deepEqual(backend.handled[0][2].toolAllowlist, ['Read', 'Grep', 'Glob']);
+  assert.deepEqual(backend.handled[0][2].toolDenylist, ['Bash']);
+  backend.request(2, 'session/resume', { sessionId: 's', toolAllowlist: ['Read', 'Bash'] });
+  assert.deepEqual(backend.handled[1][2].toolAllowlist, ['Read']);
+});
+
+test('disabled tools are denied at the native permission arrival boundary', () => {
+  const { Backend, events } = install({ disallowedTools: ['Bash'] });
+  const backend = new Backend();
+  assert.equal(backend.handleServerRequest({ id: 9, method: 'interaction/requestPermission',
+    params: { toolName: 'Bash', input: { command: 'echo no' } } }), true);
+  assert.equal(backend.replies[0].result.decision, 'deny');
+  assert.equal(events[0].type, 'policy_denied');
+  assert.equal(backend.handled.length, 0);
+});
+
+test('an incompatible upstream request hook fails closed', () => {
+  const Backend = makeBackend();
+  Backend.prototype.request = undefined;
+  assert.throws(() => installNativeGuards(Backend, { request: {}, send() {} }), /request hook unavailable/);
 });
 
 test('model substitution and unbound resume ids are denied at arrival', () => {

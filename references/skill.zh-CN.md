@@ -12,11 +12,13 @@ ACP 精确锁定 zcode-acp-server 0.72.0。每次调用使用隔离配置，不�
 
 桌面更新后，运行只读 `setup --doctor` 比较桌面/CLI/ACP 版本及原生入口 SHA256；CLI 版本不变不代表源码未变。快速 `setup --check` 使用元数据及上次成功 probe 缓存，普通任务不重复启动版本命令或哈希。成功 probe 只记录连接兼容性，不证明真实推理或任务验收。
 
-## 首审、修复和交付
+## 默认独立复审后再交付
 
-实现请求会自动追加最终首审。声明 `delivery.candidateFiles`、相关功能路径 `userPaths` 和 `verification` 回执；只有 `delivery.status=ready_for_controller_review` 才进入总控独立验收。退出码 4 表示调用结束但交付未就绪。
+每次实现完成后，由执行器新建原生只读审查会话，只使用 Read、Glob、Grep，按原始需求读取最终候选。发现问题交回原开发会话修复，执行已授权测试，再新建会话复核。最多两轮修复，未解决问题、缺失验证或进程清理不完整都会阻止交付。这是默认行为，不是可选工作流示例。
 
-提供允许的真实测试命令；环境仅总控可用时，由总控运行并回传实际失败。补齐回执后用 `check-evidence.mjs handoff` 重检，不重做实现。浏览器功能看 DOM、请求和持久化读回，视觉由具备视觉能力的总控验收，不自动切换模型。暂停、首审后纠偏和候选变化都不能沿用旧首审。[交付与恢复](delivery.zh-CN.md)
+声明 delivery.candidateFiles、功能路径 userPaths，派发前准备既有测试的完整 argv 和输入文件，通常设置 verification[].execute=true、准确的 preparedFile/receiptFile 与 timeoutSeconds。该字段只授权启动前捕获的命令；需要服务、租约或效果控制时继续用宿主已有执行器。环境只能由总控使用时，由总控运行并返回真实失败，不能伪造回执。仅 delivery.status=ready_for_controller_review 才进入最终验收；退出码 4 表示调用结束但不能交付。
+
+浏览器功能看 DOM、请求和持久化读回，视觉由具备视觉能力的总控验收。暂停会取消审查子会话，后续纠偏必须重新复审。见[交付与恢复](delivery.zh-CN.md)。
 
 ## 分工与输入
 

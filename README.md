@@ -14,6 +14,8 @@ If you already use both tools and keep copying requirements and results between 
 
 ## What it helps with
 
+**New in 1.5:** Every development handoff now runs independent review automatically: a fresh read-only session reviews the candidate, the original session repairs findings, authorized tests run, and a new session reviews the correction. Up to two repair rounds; unresolved findings or missing checks block delivery. No workflow example or opt-in flag is needed. [Default review loop](references/delivery.md)
+
 **New in 1.4:** ACP 0.72.0 support for ZCode 3.15.3, actual per-turn usage and stage timing, stricter workflow argument/model/concurrency bindings, and a reusable independent-review workflow. Late responses cannot overwrite a finalized result. [Usage and coverage](references/metrics.md) · [Native review workflow](references/native-workflows.md)
 
 **New in 1.3:** implementation tasks now finish with first-pass review and repair. Handoff readiness is separate from model completion; missing tests, stale inputs and late corrections stay visible. Functional browser checks and visual acceptance have different owners. Callers must handle exit code 4. [How delivery works](references/delivery.md)
@@ -61,7 +63,10 @@ The installer creates a small skill entry at `~/.agents/skills/codex-zcode-tande
 flowchart LR
   U["You: goal and feedback"] --> C["Codex: scope and review"]
   C -->|"Task brief via ACP"| Z["Native ZCode: build and test"]
-  Z -->|"Progress, questions, results"| C
+  Z --> R["Fresh independent review"]
+  R -->|"Findings"| Z
+  R --> V["Authorized checks and fresh re-review"]
+  V -->|"Ready handoff"| C
   C -->|"Queued feedback"| Z
   Z --> F["Your working files"]
   C -->|"Review diff and tests"| F

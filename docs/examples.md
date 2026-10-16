@@ -54,3 +54,5 @@ node.exe runtime/control.mjs --progress work/example-progress.json --action stat
 Use the same progress path you put in the request. The real outputs are the progress snapshot and result JSON, plus whatever project files the authorized task changed. A question submitted after the process exits cannot be consumed; use the saved session in a new request.
 
 See [task briefs](../references/worker-prompts.md) for phase templates and result fields.
+
+Development tasks now automatically review, repair and verify before handoff. The standalone review example is for reviewing changes that already exist.

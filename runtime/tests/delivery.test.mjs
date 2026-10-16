@@ -20,6 +20,7 @@ function fixture(t, delivery = {}) {
   const text = '```tandem-review\n' + JSON.stringify({ reviewedFiles: ['source.mjs'],
     fixedIssues: [], openIssues: [], summary: 'Read actual final source and checked behavior.' }) + '\n```';
   const review = captureReview(request, { stopReason: 'end_turn', text }, true);
+  Object.assign(review, { independent: true, sessionId: 'review-session', implementationSessionId: 'implementation-session' });
   return { cwd, raw, request, text, review, report: { status: 'completed', cwd,
     firstPassReview: review, verification: { outcome: 'not_run', checks: [] } } };
 }

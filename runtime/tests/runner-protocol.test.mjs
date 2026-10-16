@@ -34,105 +34,13 @@ const ONDEMAND_POLICY = {
   workflowOverride: { mode: 'alwaysOn', enabled: true, source: 'override' },
 };
 
-class FakeTransport {
-  constructor({ policy = DISABLED_POLICY, script = [], workflowRuns = [], ipcHandlers = {},
-    modeReadback = null } = {}) {
-    this.policy = policy;
-    this.script = script;
-    this.workflowRuns = workflowRuns;
-    this.ipcHandlers = ipcHandlers;
-    this.modeReadback = modeReadback;
-    this.handlers = {};
-    this.pid = 999_999;
-    this.child = { exitCode: null };
-    this.spawnOpts = null;
-    this.onEventSink = null;
-    this.ipcOps = [];
-    this.promptLog = [];
-    this.pending = [];
-    this.inFlight = 0;
-    this.cancelCount = 0;
-    this.initializeCalls = 0;
-    this.disposed = false;
-    this.conn = {
-      initialize: async () => {
-        this.initializeCalls += 1;
-        return { agentInfo: { name: 'zcode-acp-server', version: '0.72.0' } };
-      },
-      newSession: async () => ({ sessionId: 'sess-1', modes: [], configOptions: [] }),
-      resumeSession: async () => ({ modes: [], configOptions: [] }),
-      setSessionConfigOption: async ({ configId, value }) => ({
-        configOptions: [{
-          id: configId,
-          currentValue: configId === 'mode' && this.modeReadback !== null ? this.modeReadback : value,
-        }],
-      }),
-      extMethod: async method => ({ method }),
-      cancel: async () => { this.cancelCount += 1; },
-      prompt: params => {
-        if (this.inFlight > 0) return Promise.reject(new Error('concurrent prompt detected'));
-        this.inFlight += 1;
-        const index = this.promptLog.length;
-        this.promptLog.push(params.prompt[0].text);
-        const behavior = this.script[index] ?? 'end_turn';
-        if (behavior === 'hold') {
-          return new Promise((resolve, reject) => {
-            this.pending.push({
-              index,
-              resolve: v => { this.inFlight -= 1; resolve(v); },
-              reject: e => { this.inFlight -= 1; reject(e); },
-            });
-          });
-        }
-        this.inFlight -= 1;
-        return Promise.resolve({ stopReason: behavior });
-      },
-    };
-  }
-
-  /** The spawnTransport seam: wire onEvent and emit the policy asynchronously. */
-  spawn(opts) {
-    this.spawnOpts = opts;
-    this.onEventSink = opts.onEvent;
-    setTimeout(() => this.onEventSink?.({ type: 'policy', policy: this.policy }), 0);
-    return Promise.resolve(this);
-  }
-
-  on(handler) { Object.assign(this.handlers, handler); }
-  emitEvent(message) { this.onEventSink?.(message); }
-  emitUpdate(update) { this.handlers.sessionUpdate?.(update); }
-  emitPermission(p) { return this.handlers.requestPermission(p); }
-  resolvePrompt(text, stopReason = 'end_turn') {
-    const entry = this.pending.find(e => this.promptLog[e.index] === text) ?? this.pending[0];
-    if (entry) entry.resolve({ stopReason });
-  }
-  async ipcCall(op, payload) {
-    this.ipcOps.push([op, payload]);
-    const handler = this.ipcHandlers[op]
-      ?? {
-        'bind-run': async () => ({ bound: [] }),
-        'workflow-status': async () => ({ runs: this.workflowRuns }),
-        'workflow-stop': async ({ runId }) => ({ stopped: runId, run: { runId, status: 'cancelled' } }),
-        'workflow-resume': async ({ runId }) => ({ accepted: runId, run: { runId, status: 'running' } }),
-      }[op];
-    if (!handler) throw new Error(`no handler for ${op}`);
-    return handler(payload);
-  }
-  stderr() { return ''; }
-  waitExit() { return Promise.resolve({ code: 0, signal: null }); }
-  async dispose() {
-    this.disposed = true;
-    this.child.exitCode = 0;
-    for (const entry of this.pending.splice(0)) entry.reject(new Error('transport disposed'));
-    return { code: 0, signal: null };
-  }
-}
+import { FakeTransport } from './support/fake-transport.mjs';
 
 function makeTemp() {
   return mkdtempSync(join(tmpdir(), 'zcode-v3-runner-'));
 }
 
-function beginRun({ raw, fakeOpts = {}, invocationId }) {
+function beginRun({ raw, fakeOpts = {}, reviewOpts = {}, invocationId, cleanup = () => [] }) {
   const dir = makeTemp();
   const id = invocationId ?? `inv-${randomUUID().slice(0, 8)}`;
   const request = normalizeRequest(CONFIG, {
@@ -142,16 +50,21 @@ function beginRun({ raw, fakeOpts = {}, invocationId }) {
     ...raw,
   });
   const fake = new FakeTransport(fakeOpts);
+  const reviews = []; let spawned = false;
   const task = runTask({
     request, config: CONFIG, cwd: dir, invocationId: id,
     deps: {
-      spawnTransport: opts => fake.spawn(opts),
-      cleanupOwnedPids: () => [],
+      spawnTransport: opts => {
+        if (!spawned) { spawned = true; return fake.spawn(opts); }
+        const reviewer = new FakeTransport({ ...reviewOpts, sessionId: `review-${reviews.length + 1}` });
+        reviews.push(reviewer); return reviewer.spawn(opts);
+      },
+      cleanupOwnedPids: cleanup,
       nativeCliVersion: async () => ({ version: '3.9.9' }),
       identityRoot: dir,
     },
   });
-  return { fake, task, dir, invocationId: id, request,
+  return { fake, reviews, task, dir, invocationId: id, request,
     progressPath: join(dir, 'PROGRESS.json'), resultPath: join(dir, 'RESULT.json') };
 }
 
@@ -837,27 +750,28 @@ const DELIVERY_RAW = {
   workspace: { ownedPaths: ['note.txt'] },
   delivery: { candidateFiles: ['note.txt'], validation: 'not_applicable', validationReason: 'plain text edit' },
 };
-function emitReview(run) {
-  run.fake.emitUpdate({ sessionUpdate: 'tool_call', toolCallId: 'review-read', title: 'Read',
+function emitReview(run, fake = run.reviews.at(-1)) {
+  fake.emitUpdate({ sessionUpdate: 'tool_call', toolCallId: 'review-read', title: 'Read',
     kind: 'read', status: 'completed', rawInput: { file_path: join(run.dir, 'note.txt') },
     _meta: { claudeCode: { toolName: 'Read' } } });
-  run.fake.emitUpdate({ sessionUpdate: 'agent_message_chunk', content: { type: 'text',
+  fake.emitUpdate({ sessionUpdate: 'agent_message_chunk', content: { type: 'text',
     text: '```tandem-review\n' + JSON.stringify({ reviewedFiles: ['note.txt'], fixedIssues: [],
       openIssues: [], summary: 'Read the final text.' }) + '\n```' } });
 }
 
 test('automatic review executes after implementation and is surfaced in result/summary/progress', async () => {
-  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['end_turn', 'hold'] } });
+  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['end_turn'] }, reviewOpts: { script: ['hold'] } });
   writeFileSync(join(run.dir, 'note.txt'), 'done');
-  await waitFor(() => run.fake.promptLog.length === 2);
-  assert.match(run.fake.promptLog[1], /required first-pass review/);
-  emitReview(run); run.fake.resolvePrompt(run.fake.promptLog[1]);
+  await waitFor(() => run.reviews[0]?.promptLog.length === 1);
+  assert.match(run.reviews[0].promptLog[0], /fresh, independent reviewer/);
+  emitReview(run); run.reviews[0].resolvePrompt(run.reviews[0].promptLog[0]);
   const { report, exitCode } = await run.task;
   assert.equal(exitCode, 0);
   assert.equal(report.delivery.status, 'ready_for_controller_review');
   assert.equal(report.summary.delivery.status, report.delivery.status);
   assert.equal(readJsonFile(run.progressPath).delivery.status, report.delivery.status);
-  assert.equal(report.metrics.stages.review.turns, 1);
+  assert.equal(report.qualityLoop.reviews[0].metrics.stages.review.turns, 1);
+  assert.equal(report.firstPassReview.independent, true);
   assert.equal(report.metrics.firstPass.source, 'model_reported');
   assert.deepEqual(report.metrics, report.summary.metrics);
   assert.deepEqual(report.metrics, readJsonFile(run.progressPath).metrics);
@@ -871,17 +785,25 @@ test('an end_turn without review evidence exits 4, not successful handoff', asyn
   assert.equal(report.delivery.status, 'needs_review');
 });
 
-test('a late steering turn invalidates the just-completed review even if files stay unchanged', async () => {
-  const run = beginRun({ raw: DELIVERY_RAW, fakeOpts: { script: ['end_turn', 'hold'] } });
+test('steering after review triggers another fresh review before handoff', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW, reviewOpts: { script: ['hold'] } });
   writeFileSync(join(run.dir, 'note.txt'), 'done');
-  await waitFor(() => run.fake.promptLog.length === 2);
+  await waitFor(() => run.reviews[0]?.promptLog.length === 1);
   writeControl(run.dir, run.invocationId, 'steer', { message: 'A new requirement must be checked' });
   await waitFor(() => readJsonFile(run.progressPath)?.controls?.queue?.length === 1);
-  emitReview(run); run.fake.resolvePrompt(run.fake.promptLog[1]);
+  emitReview(run); run.reviews[0].resolvePrompt(run.reviews[0].promptLog[0]);
+  await waitFor(() => run.reviews[1]?.promptLog.length === 1);
+  assert.match(run.reviews[1].promptLog[0], /A new requirement must be checked/);
+  writeControl(run.dir, run.invocationId, 'steer', { message: 'One more correction during the last review' });
+  await waitFor(() => readJsonFile(run.progressPath)?.controls?.queue?.length === 1);
+  emitReview(run); run.reviews[1].resolvePrompt(run.reviews[1].promptLog[0]);
+  await waitFor(() => run.reviews[2]?.promptLog.length === 1);
+  assert.match(run.reviews[2].promptLog[0], /One more correction during the last review/);
+  emitReview(run); run.reviews[2].resolvePrompt(run.reviews[2].promptLog[0]);
   const { report, exitCode } = await run.task;
-  assert.equal(exitCode, 4);
-  assert.equal(report.firstPassReview.invalidated, true);
-  assert.match(report.delivery.reasons.join(), /subsequent steering/);
+  assert.equal(exitCode, 0);
+  assert.equal(report.firstPassReview.invalidated, undefined);
+  assert.equal(run.reviews.length, 3);
 });
 
 test('pause cannot skip review; a resumed request gets a fresh review turn', async () => {
@@ -894,10 +816,10 @@ test('pause cannot skip review; a resumed request gets a fresh review turn', asy
   assert.equal(paused.exitCode, 3);
   assert.equal(paused.report.delivery.status, 'needs_review');
   const resumed = beginRun({ raw: { ...DELIVERY_RAW, sessionId: 'sess-1', prompt: 'finish remaining work' },
-    fakeOpts: { script: ['end_turn', 'hold'] } });
+    fakeOpts: { script: ['end_turn'] }, reviewOpts: { script: ['hold'] } });
   writeFileSync(join(resumed.dir, 'note.txt'), 'done');
-  await waitFor(() => resumed.fake.promptLog.length === 2);
-  emitReview(resumed); resumed.fake.resolvePrompt(resumed.fake.promptLog[1]);
+  await waitFor(() => resumed.reviews[0]?.promptLog.length === 1);
+  emitReview(resumed); resumed.reviews[0].resolvePrompt(resumed.reviews[0].promptLog[0]);
   assert.equal((await resumed.task).exitCode, 0);
 });
 
@@ -916,6 +838,36 @@ test('prompt response usage is charged once; session hints and replay are not bi
   notify({ sessionId: 'sess-1', running: false, usage: { totalTokens: 8888 } });
   assert.deepEqual(report.metrics, readJsonFile(run.progressPath).metrics);
   assert.equal(report.metrics.total.turns, 1);
+});
+
+test('pause during the independent review cancels and cleans up both owned transports', async () => {
+  const run = beginRun({ raw: DELIVERY_RAW, reviewOpts: { script: ['hold'] } });
+  writeFileSync(join(run.dir, 'note.txt'), 'done');
+  await waitFor(() => run.reviews[0]?.promptLog.length === 1);
+  writeControl(run.dir, run.invocationId, 'pause', {});
+  await waitFor(() => run.reviews[0].cancelCount > 0);
+  run.reviews[0].resolvePrompt(run.reviews[0].promptLog[0], 'cancelled');
+  const result = await run.task;
+  assert.equal(result.exitCode, 3);
+  assert.equal(result.report.delivery.status, 'needs_review');
+  assert.equal(run.reviews[0].disposed, true);
+  assert.equal(run.fake.disposed, true);
+});
+
+test('a failed child cleanup cannot be reported as a clean parent pause', async () => {
+  let cleanups = 0;
+  const run = beginRun({ raw: DELIVERY_RAW, reviewOpts: { script: ['hold'] },
+    cleanup: () => ++cleanups === 1 ? [{ pid: 12345, ok: false, error: 'fixture: failed cleanup' }] : [] });
+  writeFileSync(join(run.dir, 'note.txt'), 'done');
+  await waitFor(() => run.reviews[0]?.promptLog.length === 1);
+  writeControl(run.dir, run.invocationId, 'pause', {});
+  await waitFor(() => run.reviews[0].cancelCount > 0);
+  run.reviews[0].resolvePrompt(run.reviews[0].promptLog[0], 'cancelled');
+  const result = await run.task;
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.report.status, 'needs_attention');
+  assert.equal(result.report.cleanup.find(row => row.pid === 12345).ok, false);
+  assert.equal(run.fake.disposed, true);
 });
 
 test('rejected prompt has one incomplete turn and unavailable usage', async () => {

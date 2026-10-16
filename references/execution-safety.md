@@ -86,3 +86,5 @@ Optional `quotaSnapshots: true` reads shared account usage once before and once 
 - Missing patches in an isolated directory or child-process encoding failures: check controller preparation and environment before blaming the native engine or product code.
 
 These checks apply when relevant; they do not require a browser or a full regression run for every task.
+
+For bounded local checks, verification[].execute=true explicitly grants execution of the prepared argument list captured before inference. Per-turn toolDenylist plus create/resume toolAllowlist restrict the native reviewer. Existing effect controls remain applicable. See delivery.md.

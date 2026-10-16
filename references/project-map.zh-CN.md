@@ -45,3 +45,5 @@ workspace-policy 在权限回调中检查文件归属和完整命令；verificat
 scope-observer 在日志压缩前保留有界的权限相关输入，将未知范围证据与确认的策略违规分别记录。
 
 `delivery.mjs` 负责自动首审、候选内容绑定和交付状态，复用已有验证回执，不执行测试、不授予独立验收。
+
+quality-loop 负责新会话审查、有限修复和验证；check-execution 仅执行预先捕获的授权 argv；runner 负责跨会话取消和清理；delivery 统一判定交付。

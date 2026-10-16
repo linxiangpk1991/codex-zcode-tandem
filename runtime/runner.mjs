@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildReportState, completeReport, captureQuota } from './reporting.mjs';
-import { reviewPrompt, captureReview, observedCandidateInspection } from './delivery.mjs';
+import { runQualityLoop } from './quality-loop.mjs';
 import { ScopeObserver } from './scope-observer.mjs';
 import { inspectNativeIdentity, collectNativeIdentity, rememberCompatibilityProbe } from './native-identity.mjs';
 import { buildChildEnv, buildIsolatedAcpConfig, resolvePaths, workflowModeForRequest } from './config.mjs';
@@ -48,7 +48,7 @@ export function assertPolicyProof(policy, request, expectedWorkflowMode) {
   return true;
 }
 
-export async function runTask({ request, config, cwd, invocationId = randomUUID(), deps = {} }) {
+export async function runTask({ request, config, cwd, invocationId = randomUUID(), deps = {}, signal = null }) {
   const dependencyKeys = ['delay', 'setIntervalFn', 'clearIntervalFn', 'setTimeoutFn',
     'clearTimeoutFn', 'spawnTransport', 'log', 'nativeCliVersion', 'cleanupOwnedPids', 'identityRoot'];
   for (const key of Object.keys(deps)) {
@@ -149,6 +149,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     config.inboxPollMs);
   pollTimer.unref?.();
   const onSignal = () => { void interrupt('cancelled', 'interrupted by signal'); };
+  signal?.addEventListener('abort', onSignal, { once: true });
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
 
@@ -534,6 +535,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   function beginPause(payload = {}) {
     if (st.pausing) return;
     st.pausing = true;
+    st.qualityAbort?.abort();
     st.pausePayload = payload;
     st.pauseTimer = setTimeoutFn(() => { void interrupt('paused'); }, config.gracefulCancelWaitMs);
     st.pauseTimer.unref?.();
@@ -562,6 +564,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   async function drainSteers() {
     while (st.steers.length > 0 && !terminal() && !st.needsAttention) {
       const steer = st.steers.shift();
+      (st.steeringRequirements ??= []).push(steer.text);
       if (report.firstPassReview) report.firstPassReview.invalidated = true;
       const label = `steer:${steer.id.slice(-8)}`;
       tracker.setPhase(tracker.state.phase.index, label);
@@ -595,13 +598,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       await drainSteers();
       if (terminal() || st.needsAttention) break;
       const item = request.prompts[index];
+      if (item.deliveryReview) { await quality(); continue; }
       tracker.setPhase(index, item.label);
       tracker.setStatus('running');
       const previousToolIds = new Set(st.tools.keys());
-      const result = await runPromptTurn({ label: item.label, phase: item.phase, text: item.deliveryReview ? reviewPrompt(request) : item.text });
+      const result = await runPromptTurn({ label: item.label, phase: item.phase, text: item.text });
       recordTurn(item.label, result);
-      if (item.deliveryReview) report.firstPassReview = captureReview(request, result,
-        observedCandidateInspection(request, [...st.tools.entries()].filter(([id]) => !previousToolIds.has(id)).map(([, t]) => t)));
       writeResultEarly();
       if (terminal()) break;
       if (result.stopReason !== 'end_turn') {
@@ -625,6 +627,14 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (!terminal()) {
       await drainSteers(); // trailing steers accepted before completion
     }
+  }
+
+  async function quality() {
+    if (!request.delivery || terminal() || st.needsAttention) return;
+    st.qualityPromise = runQualityLoop({ request, config, report, st, tracker,
+      directory: join(inboxDir, `quality-${randomUUID()}`), deadlineAt, runTask, deps, runPromptTurn, recordTurn,
+      terminal: () => terminal() || st.needsAttention, writeResultEarly });
+    try { await st.qualityPromise; } finally { st.qualityPromise = null; }
   }
 
   async function waitBackgroundSettle() {
@@ -706,6 +716,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     });
     nativePids.clear();
     tracker.setNativePids([]);
+    st.cleanup.push(...(report.reviewCleanup ?? []));
     report.cleanup = st.cleanup;
   }
 
@@ -716,6 +727,8 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
   async function finish(status, { error = null, exitCode = null } = {}) {
     st.finalized = true;
+    st.qualityAbort?.abort();
+    if (st.qualityPromise) await st.qualityPromise.catch(() => {});
     tracker.setStatus('closing');
     st.expectedBridgeExit = true;
     if (st.pauseTimer) clearTimeoutFn(st.pauseTimer);
@@ -730,6 +743,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     clearTimeoutFn(policyTimer);
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);
+    signal?.removeEventListener('abort', onSignal);
     if (status === 'paused' && st.pauseCommandId) {
       tracker.recordControl(st.pauseCommandId, 'pause', 'completed', 'invocation paused');
     }
@@ -793,6 +807,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     if (st.finalized || st.interrupting) return;
     st.interrupting = true;
     st.interruptReason = reason;
+    st.qualityAbort?.abort();
     if (st.sessionId && transport) {
       Promise.resolve(transport.conn.cancel({ sessionId: st.sessionId })).catch(() => {});
     }
@@ -806,6 +821,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   // ---------- main flow ----------
   let exitCode = 1;
   try {
+    if (signal?.aborted) throw new Error('Invocation cancelled before startup');
     if (request.action === 'probe') {
       st.nativeCliVersion = deps.nativeCliVersion ? await deps.nativeCliVersion(paths)
         : await probeNativeCliVersion({ nodeBin: paths.nodeBin, zcodeBin: paths.zcodeBin });
@@ -931,6 +947,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     }
     if (!st.needsAttention) {
       await idleWindow();
+    }
+    while (!terminal() && !st.needsAttention) {
+      await drainSteers();
+      if (!report.firstPassReview?.invalidated) break;
+      await quality();
     }
     const finalStatus = st.interruptReason ?? (st.pausing ? 'paused' : st.needsAttention ? 'needs_attention' : 'completed');
     exitCode = await finalize(finalStatus);

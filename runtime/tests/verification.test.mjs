@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { prepareCheck, assessCheck, assessVerification, argvHash } from '../verification.mjs';
+import { prepareCheck, assessCheck, assessVerification, argvHash, normalizeVerification } from '../verification.mjs';
 
 function fixture(exit = 0) {
   const cwd = mkdtempSync(join(tmpdir(), 'tandem-check-'));
@@ -28,6 +28,17 @@ test('real passing and failing exit codes survive receipt import', () => {
   assert.equal(failed.outcome, 'fail');
   assert.equal(failed.exitCode, 7);
   assert.equal(failed.failureClass, 'known_baseline');
+});
+
+test('a model cannot change an imported failing receipt into a pass during a call', () => {
+  const f = fixture(7);
+  const checks = normalizeVerification([f.item]);
+  assert.equal(assessVerification(checks).checks[0].outcome, 'fail');
+  f.receipt.exitCode = 0; f.receipt.outcome = 'pass'; f.save();
+  assert.equal(assessVerification(checks).checks[0].outcome, 'invalid');
+  assert.match(assessVerification(checks).checks[0].reason, /changed after dispatch/);
+  // An explicit controller handoff command has a new readback boundary.
+  assert.equal(assessCheck(f.item).outcome, 'pass');
 });
 test('truncation and changed source prevent a green handoff', () => {
   const f = fixture();

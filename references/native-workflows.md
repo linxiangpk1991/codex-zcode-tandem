@@ -64,3 +64,5 @@ Native permission inputs expand a path to its body. Tandem checks the whole file
 An explicitly requested native workflow exposes its tools through invocation-local `alwaysOn`; ordinary tasks keep workflows disabled. This neither changes desktop settings nor starts a workflow without the script binding. `guarded` is an explicit opt-in; `build` remains the default and Auto-review is not code review.
 
 [review-workflow.ts](review-workflow.ts) runs implementation, a fresh review actor, targeted repair and a deterministic Node test. Review the task, owned/preserved files, test path and resolved Node runtime before hashing the script and approving args. Changing a command changes the reviewed artifact. Actor personas are not a read-only sandbox; do not use this sample for production writes or publishing. Cached node results are not newly executed tests.
+
+Default development review is now built into the runner. The workflow below remains an advanced example for explicit actors and persisted nodes; it is not needed to enable review.

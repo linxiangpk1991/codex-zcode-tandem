@@ -209,6 +209,8 @@ export function buildChildEnv(config, paths, request, xdgHome) {
   env.PYTHONIOENCODING = 'utf-8';
   env.XDG_CONFIG_HOME = xdgHome;
   env.CODEX_ZCODE_BINDINGS = JSON.stringify({
+    disallowedTools: request.disallowedTools,
+    nativeToolAllowlist: request.nativeToolAllowlist,
     approvedWorkflowSha256: request.approvedWorkflowSha256,
     approvedWorkflowModel: request.approvedWorkflowModel,
     approvedWorkflowArgs: request.approvedWorkflowArgs,

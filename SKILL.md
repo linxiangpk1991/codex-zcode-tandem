@@ -11,17 +11,19 @@ This file's directory is the source root. The installed pointer records its actu
 
 Windows and Node 24.19.0 are required; ACP is pinned to 0.72.0. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
 
-## First-pass review before handoff
+## Default independent review before handoff
 
-Implementation requests automatically end with a review/repair turn. Declare `delivery.candidateFiles`, functional `userPaths` where relevant, and existing `verification` inputs/receipts. Read `delivery.status`: only `ready_for_controller_review` starts final acceptance. Exit 4 means the native invocation ended but the handoff is not ready.
+Every implementation request enters a runtime-controlled review loop. A fresh native session uses only Read, Glob and Grep to inspect the final candidate against the original requirements. Findings go back to the original developer session for repair. Execute authorized checks, then obtain another fresh review. At most two repair rounds; unresolved findings, missing evidence and incomplete cleanup block delivery. This is automatic, not an optional workflow example.
 
-Give ZCode approved test commands, or arrange controller-run validation and return actual failures. Use `check-evidence.mjs handoff` to recheck new receipts without repeating implementation. Browser functionality uses DOM, requests and persisted readback; visual acceptance belongs to a vision-capable controller. This does not switch models. A pause, late correction or changed candidate cannot reuse a stale review. See [delivery and recovery](references/delivery.md).
+Declare `delivery.candidateFiles` and required `userPaths`. Prepare the existing test command and its input files before dispatch, then normally set `verification[].execute: true` with exact preparedFile/receiptFile paths and timeoutSeconds. This authorizes only the captured command; it does not give the model arbitrary execution. Use the host's maintained runner instead when its services, leases or effect controls are required. If only the controller has the environment, it runs the check and returns real failures. Never fabricate a receipt. Read `delivery.status`; only `ready_for_controller_review` enters final acceptance. Exit 4 means the invocation ended but the handoff is not ready.
+
+Browser functional checks use DOM, requests and persisted readback. Visual acceptance stays with the vision-capable controller. Pause cancels the reviewer too; later corrections get fresh review. See [delivery and recovery](references/delivery.md).
 
 ## Delegate a coherent piece of work
 
 Codex owns scope, project baseline, allowed and preserved paths, decisions, integration, and final acceptance. ZCode owns the assigned implementation/test/fix phase. Do not create a duplicate executor for a phase already assigned to ZCode.
 
-ZCode does not inherit this chat. Send the necessary original requirement and applicable project rules using [task briefs](references/worker-prompts.md). An implementation session's self-review is not independent review; use a separate restricted session or explicitly named workflow actor when independence matters.
+ZCode does not inherit this chat. Send the necessary original requirement and applicable project rules using [task briefs](references/worker-prompts.md). The default handoff creates a separate restricted review session; intermediate developer self-review and workflow actors do not replace that gate.
 
 The skill does not authorize publication, production writes, credential access, or unrelated delegation. Keep the project's existing effect and authorization boundaries.
 

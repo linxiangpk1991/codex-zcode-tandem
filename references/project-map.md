@@ -49,3 +49,5 @@ workspace-policy checks ownership and exact command grants at permission callbac
 scope-observer keeps bounded policy-relevant inputs before log compaction and separates unknown scope evidence from confirmed policy violations.
 
 `delivery.mjs` owns automatic first-pass review, candidate binding and handoff readiness. It reuses verification receipts; it does not execute tests or grant independent acceptance.
+
+quality-loop owns fresh review, bounded repair and validation. check-execution runs only pre-captured authorized argument lists. runner owns cancellation and cleanup across sessions; delivery decides readiness.

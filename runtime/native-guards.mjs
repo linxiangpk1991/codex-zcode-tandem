@@ -5,6 +5,24 @@ import { inspectWorkflowBinding } from './workflow-contract.mjs';
 // auto-allow workflow tools without reaching the ACP client permission path.
 export function installNativeGuards(Backend, { send, request, isPermissionRequest,
   platform = process.platform }) {
+  // Native app-server 0.16.9 also needs the policy on each turn. The ACP
+  // adapter currently forwards content but drops this session/send field.
+  const backendRequest = Backend.prototype.request;
+  if (typeof backendRequest !== 'function') throw new Error('Native backend request hook unavailable; cannot enforce tool policy');
+  Backend.prototype.request = function (id, method, params, timeoutMs) {
+    const session = method === 'session/create' || method === 'session/resume';
+    if ((session || method === 'session/send') && request.disallowedTools?.length) {
+      params = { ...params, toolDenylist: [...new Set([
+        ...(params?.toolDenylist ?? []), ...request.disallowedTools,
+      ])] };
+    }
+    if (session && request.nativeToolAllowlist) {
+      const allowed = request.nativeToolAllowlist;
+      params = { ...params, toolAllowlist: params?.toolAllowlist
+        ? allowed.filter(tool => params.toolAllowlist.includes(tool)) : [...allowed] };
+    }
+    return backendRequest.call(this, id, method, params, timeoutMs);
+  };
   const watchdog = Backend.prototype.startWatchdog;
   Backend.prototype.startWatchdog = function () {
     const pid = this.proc.pid;
@@ -18,6 +36,12 @@ export function installNativeGuards(Backend, { send, request, isPermissionReques
   Backend.prototype.handleServerRequest = function (req) {
     const p = req.params ?? {};
     if (isPermissionRequest(req.method)) {
+      if (request.disallowedTools?.includes(p.toolName)) {
+        const reason = `Tool disabled by controller: ${p.toolName}`;
+        this.sendReply(req.id, { decision: 'deny', reason });
+        send({ type: 'policy_denied', toolName: p.toolName, reason });
+        return true;
+      }
       const workflow = ['CreateWorkflow', 'AmendWorkflow'].includes(p.toolName);
       const resume = p.toolName === 'ResumeWorkflowRun';
       const binding = workflow ? inspectWorkflowBinding(request, p.input) : null;

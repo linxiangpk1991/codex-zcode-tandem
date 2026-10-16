@@ -54,3 +54,5 @@ node.exe runtime/control.mjs --progress work/example-progress.json --action stat
 进度路径要与请求一致。实际产出包括进度快照、结果 JSON，以及授权任务改过的项目文件。进程退出后无法再处理追问，需要用保存的会话标识发起新请求。
 
 阶段模板和结果字段见[委派模板](../references/worker-prompts.zh-CN.md)。
+
+开发任务现在默认先复审、修复和验证，再交回总控。独立审查示例用于审查已有改动。

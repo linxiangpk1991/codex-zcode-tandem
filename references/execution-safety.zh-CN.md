@@ -86,3 +86,5 @@ ACP 0.72.0 的环境探针使用 POSIX 的 `-l -c env -0`。当 SHELL 指向 Pow
 - 隔离目录缺文件、漏应用补丁、子进程编码错误：先核对总控准备和执行环境，不能直接归因为原生模型或业务代码缺陷。
 
 这些提示只在相关改动中使用，不要求每个任务跑浏览器或全套回归。
+
+有限本地检查可通过 verification[].execute=true 授权执行推理前捕获的完整 argv。原生逐回合 toolDenylist 与创建/恢复时 toolAllowlist 限制审查工具。已有外部效果控制继续适用。见 delivery.zh-CN.md。

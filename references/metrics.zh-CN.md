@@ -15,3 +15,5 @@ Token 只读取对应 ACP `PromptResponse.usage`。`reportedByField` 表示该�
 新版原生 `turnState` 通知没有回合 ID，也会在压缩上下文时触发。客户端只订阅一个别名，把它作为会话忙闲提示，不把通知中的用量或 `turnMs` 归给当前提示。因此 `nativeTurnMs` 暂为 `null`。后台工作流角色的用量不在前台提示账单覆盖范围内；账号额度快照也不是任务账单。
 
 `firstPass` 的已修复/未解决问题数量来自模型首审声明，标记为 `model_reported`。首审后继续纠偏会使该声明失效。没有采集总控发现数时，`controllerFindings` 保留为 `null`，不会据此计算质量提升率。
+
+独立审查用量记录在 qualityLoop.reviews[].metrics，不计入父会话 metrics.total。每次审查有单独会话 ID 和结果文件。

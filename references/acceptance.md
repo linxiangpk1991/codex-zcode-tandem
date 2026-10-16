@@ -1,3 +1,13 @@
+# 1.5 acceptance — 2026-10-17
+
+- Public Windows regression: 181 tests passed, including the separate public installer behavior. Node 24.19.0 and ACP 0.72.0 remain pinned.
+- The shared runtime was first qualified in the private 3.6 candidate against ZCode Desktop 3.15.3.8237 / CLI 0.16.9 and GLM-5.3/max/build. In a disposable project with a deliberately broken clamp upper bound, default independent review found the defect, the original developer fixed it, the authorized Node test passed, and a second fresh reviewer found no remaining issue. Only then did delivery become ready_for_controller_review with exit 0. All three owned native processes were cleaned up.
+- That live test exposed native tool-filter gaps. Create/resume now binds the review allowlist and every send binds the denylist. The successful reviewers used only Read/Glob/Grep. Missing backend hooks fail closed.
+- Independent source review found a receipt-write gap. Corrections protect verification artifacts even inside owned paths and pin imported evidence during the call. A focused independent re-review found no unresolved defect in that corrected scope. The final private suite passed 180 tests. The additional receipt protection is covered by regressions; the live development scenario was not rerun after those focused changes.
+- The public checkout was separately installed into a disposable skills directory and its native GLM-5.3/max/build connection probe passed. The user's private skill pointer remained unchanged. This is one Windows machine, not a second-device or cross-platform qualification.
+
+Prepared plans and existing receipts are trusted caller inputs, not signed attestations. Review can miss bugs. Visual, production and business acceptance remain outside this fixture. Local raw evidence stays in ignored work directories; the repository contains only this summary.
+
 # Verification and known limits
 
 ## 1.4 validation — 2026-10-16

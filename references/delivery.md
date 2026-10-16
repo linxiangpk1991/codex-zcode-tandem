@@ -1,70 +1,74 @@
-# Review, repair, verify, then hand back
+# Independent review, repair and verification by default
 
-ZCode should inspect its final changes, fix the problems it finds, and run the relevant checks before Codex starts final acceptance. This workflow makes that first pass explicit without treating the author's own review as independent approval.
+After an implementation finishes, the runner starts the following loop. It does not depend on the model remembering a checklist, a `nativeWorkflow` flag or a copied example.
 
-## Describe the candidate
+1. A fresh native session reviews the original requirements, later corrections, declared candidate files and check information. It does not inherit the developer conversation. Its native tool list contains Read, Glob and Grep only.
+2. Concrete, in-scope findings go back to the original developer session. File ownership and command permissions stay in force.
+3. The runner executes the caller's authorized checks, or reuses still-valid receipts. Changed inputs require fresh input hashes and a new run; unaffected passing checks are reused.
+4. A new session reviews the correction. At most two repair rounds are allowed. Unresolved issues block the handoff.
 
-An `action=run` request granting `edit`, or declaring owned paths for execution/native workflows gets a final `tandem:first-pass-review` turn automatically. Read-only queries, quota calls and connection probes do not. The turn uses the existing permissions and total timeout. It does not grant commands or launch another agent. Existing self-review prompts may remain as intermediate checks, or be removed to avoid duplication.
+Read-only queries, quota calls and connection probes do not enter this loop. Editing requests, resumed editing requests, and execution/native workflow requests with owned paths do. `delivery: false` cannot turn it off. Self-review during development is useful, but does not replace the final independent review.
 
-Add this to an implementation request:
+## Prepare verification
+
+The controller first inspects the effects of the project's existing test command. Prepare its exact arguments and the source, test and configuration files that affect it:
+
+```json
+{
+  "name": "editor save",
+  "cwd": "C:/projects/example",
+  "command": ["C:/tools/node.exe", "--test", "tests/editor.test.mjs"],
+  "candidateFiles": ["src/editor.mjs", "tests/editor.test.mjs"],
+  "userPaths": ["edit-save-refresh"]
+}
+```
+
+Run `node.exe scripts/check-evidence.mjs prepare SPEC.json PREPARED.json`, then include this in the development request:
 
 ```json
 {
   "delivery": {
-    "candidateFiles": ["src/editor.ts", "tests/editor.test.ts"],
+    "candidateFiles": ["src/editor.mjs", "tests/editor.test.mjs"],
     "userPaths": ["edit-save-refresh"],
-    "validation": "required",
     "visualReview": "controller"
   },
-  "verification": [
-    {
-      "preparedFile": "C:/projects/example/work/save-prepared.json",
-      "receiptFile": "C:/projects/example/work/save-receipt.json"
-    }
-  ]
+  "verification": [{
+    "preparedFile": "C:/projects/example/work/check-prepared.json",
+    "receiptFile": "C:/projects/example/work/check-receipt.json",
+    "execute": true,
+    "timeoutSeconds": 120
+  }]
 }
 ```
 
-`candidateFiles` lists concrete paths relative to the project directory: no directories, wildcards or escaping paths. Include the source, tests and configuration covered by this review. Deleted files may be listed for review of their deletion diff. Omitting the scope still runs review, but cannot produce a ready handoff.
+`execute: true` authorizes that specific check. Before model work starts, the entry point captures its complete argument list, directory, input files and functional paths. Editing the prepared file later cannot substitute a different command. The executable must be an absolute path and the check must use the task directory. Shell pipeline wrappers are rejected. Each check defaults to 120 seconds, accepts 1–600 seconds, and is also bounded by the remaining task deadline. The runner saves the actual exit code and bounded output, and stops its owned process tree on cancellation.
 
-`userPaths` names the functional flows that need verification. Omit it when the change has no user interaction. Add the same names to the existing SPEC used by `check-evidence.mjs prepare`. A passing receipt then covers those declared flows. Codex must check that the test actually exercises them; renaming a unit test does not make it a browser or business test.
+Use this path for local tests. Tests requiring services, port leases, external writes or host-specific controls must keep using the project's maintained runner. This field does not bypass those controls.
 
-Use the project's existing runner. Prepare the check before execution, including its actual source/test/config dependencies in the SPEC's `candidateFiles`, then inspect the runner's receipt. Never ask the model to manufacture a receipt from its summary. A prose-only change may use `validation: "not_applicable"` with a specific `validationReason`; this cannot skip declared user paths or hide declared failing checks.
+External runner receipts remain supported: omitting `execute` grants no automatic execution. When only the controller has the required environment, it runs the check. Missing, failed or stale evidence blocks delivery; the model must not manufacture receipts. A documentation task that has no applicable runtime check may use `validation: "not_applicable"` with a specific reason. This cannot skip declared functional paths or failing declared checks.
 
-## What the first pass should do
+Prepared files and receipts are protected from model edits even inside ownedPaths. Imported evidence is pinned at dispatch; a change during the call requires explicit controller handoff readback. Pre-existing receipts are caller-supplied trusted inputs: verify their provenance first. This tool does not authenticate arbitrary external JSON with a signature. Reuse only known genuine passing results whose inputs are unchanged.
 
-- Check the shortest essential user flow before expanding to other modules. For editing, cover opening, changing, the actual save request, its response, and persisted readback after refresh.
-- Read the final diff and integration points. A component existing does not mean it is registered; a passing API test does not mean the form sends the right fields.
-- Reinspect fixes and rerun only affected checks. Reuse passing checks whose inputs remain unchanged.
-- Distinguish product, test/fixture, environment and proven baseline failures. After two attempts at the same cause without new evidence, diagnose or report the blocker instead of repeating.
-- If execution or environment access is unavailable, report pending validation. Codex can run the approved checks and send actual failures back for repair.
+## Status and recovery
 
-The automatic turn requires observed inspection tool activity and a structured `tandem-review` declaration listing fixed and open issues. The runtime records the candidate content at completion. It can verify the turn, content binding and receipts, but cannot prove that the review was thorough or free of missed defects.
+`qualityLoop` records reviewing/repair/validation, the independent session IDs, original developer session ID, result paths, usage and check results. Reviewer usage lives in `qualityLoop.reviews[].metrics`; it is not included in the parent session's metric total.
 
-## Functional checks and visual acceptance
-
-GLM-5.3 can work with DOM state, network requests and test output. Screenshot interpretation, layout judgment and overall visual quality belong to a vision-capable controller or a person. With `visualReview: "controller"`, the result stays `pending_controller`; passing functional checks never mark visual acceptance complete. A model's vision capability and the tools available through a particular ACP session must be verified separately. This feature does not switch models.
-
-## Read the result and resume safely
-
-| `delivery.status` | Next step |
+| delivery.status | Meaning |
 | --- | --- |
-| `needs_review` | Complete review or scope; inspect interruption, late steering, changed files or missing evidence |
-| `changes_requested` | Resolve the review's open issues |
-| `awaiting_validation` | Supply missing checks or repair failed/stale checks |
-| `ready_for_controller_review` | Start independent acceptance; visual review may still be pending |
-| `not_applicable` | No delivery check was declared for this operation; this is not implementation acceptance |
+| needs_review | Review is incomplete, evidence is missing, the candidate changed, or work was interrupted |
+| changes_requested | Review findings remain unresolved |
+| awaiting_validation | Actual checks are missing, failed, stale or do not cover the declared paths |
+| ready_for_controller_review | Independent review and declared checks are ready for final controller acceptance |
+| not_applicable | This operation does not involve a development handoff |
 
-`status: completed` still means the native invocation ended. An unready implementation now exits with **4**. Existing codes 1/2/3 retain error, timeout/cancellation and pause meanings. Update callers to handle 4; do not interpret it as an engine crash and replay all the work.
+Native `completed` is not a ready handoff. The CLI returns 4 when the invocation ended but delivery is not ready. Pause cancels the independent reviewer too and waits for cleanup. An unconfirmed child cleanup makes the parent require attention. A resumed development request handles the remaining work and gets a fresh review. Steering received during review is processed before another review, including steering during the final review. Earlier review files are retained.
 
-After Codex runs checks into the receipt locations from the original request, reevaluate without another model call:
+After supplying the receipts named by the original request, the controller can run `node.exe scripts/check-evidence.mjs handoff RESULT.json` to reassess delivery without changing the old report or repeating implementation.
 
-```powershell
-node.exe scripts/check-evidence.mjs handoff C:/projects/example/work/result.json
-```
+## What still needs the controller
 
-This read-only command uses the contract saved in the result, checks current files and receipts, and leaves the original result unchanged. Exit 0 means ready for controller review; 4 means something remains. Do not rewrite an old report to clear findings.
+A fresh session has separate context and a smaller native tool list. It is not an operating system sandbox and can still miss bugs. The runner checks actual reads of every declared candidate, file hashes, session identity and real verification evidence. It cannot infer review depth from a clean declaration. Candidate scope and test selection remain the controller's responsibility.
 
-After a pause, resume the original `sessionId` with the same ownership, candidate scope and verification requirements, requesting only unfinished work. The runtime adds a fresh final review. Steering after review invalidates it even if the files did not change: the new requirements still need review. Background work must finish first. A `workflow-resume` management result is not a delivery result; follow it with a scoped `run` for final review.
+GLM handles code and functional checks. Browser functionality is checked through DOM state, requests/responses and persisted readback. Screenshots, layout and visual quality need a vision-capable controller or a person. `visualReview: "controller"` keeps `pending_controller` visible.
 
-Upgrades do not change old invocations. Use the recorded `runtimeRoot` to control an existing task; new calls can use the new version.
+Upgrades affect new invocations. Existing calls keep their original runtime directory. Old same-session review reports are not promoted to independent approval.

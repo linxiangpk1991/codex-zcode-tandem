@@ -78,7 +78,7 @@ export async function captureQuota(conn) {
 
 export function buildReportState(report, st, tracker, progressPath, inboxDir) {
   Object.assign(report, {
-    response: st.response, needsAttention: st.needsAttention, workflow: tracker.state.workflow,
+    response: st.response, stopReason: st.lastStopReason, needsAttention: st.needsAttention, workflow: tracker.state.workflow,
     sessionId: st.sessionId, acpVersion: st.acpVersion, agentInfo: st.agentInfo,
     effectivePolicy: st.policy, bridgeVersion: st.acpVersion, tools: [...st.tools.values()],
     permissions: st.permissions, config: st.configOptions, backgroundTasks: [...st.backgroundTasks.values()],
@@ -123,7 +123,7 @@ export function completeReport(report, request, paths) {
     model: report.modelEffective, thought: report.thoughtEffective,
     sessionId: report.sessionId, workflowRunIds: report.workflowRunIds,
     metrics: report.metrics,
-    verification: report.verification, delivery: report.delivery, controls: report.controls.slice(-20).map(c => ({
+    verification: report.verification, delivery: report.delivery, qualityLoop: report.qualityLoop ?? null, controls: report.controls.slice(-20).map(c => ({
       id: c.id, action: c.action, state: c.state, submittedAt: c.submittedAt,
       acceptedAt: c.acceptedAt, startedAt: c.startedAt, completedAt: c.completedAt,
       queueDurationMs: c.queueDurationMs, executionDurationMs: c.executionDurationMs })),

@@ -1,5 +1,13 @@
 # Changelog / 更新记录
 
+## 1.5.0 — 2026-10-17
+
+Independent review is now the default development handoff. Fresh read-only sessions review the candidate, the original developer repairs concrete findings, authorized checks run, and a fresh session reviews the correction. Two repair rounds are allowed. Checks capture their exact argv before inference. Native tool restrictions are applied at session creation/resume and every send. Pause and late steering include reviewer cleanup and re-review. Missing checks or unresolved findings return a blocked handoff, not approval.
+
+独立复审成为默认开发交接流程：全新只读会话审查，原开发会话修复，执行已授权验证，再新建会话复核。最多两轮修复；测试完整 argv 在推理前锁定。原生工具限制覆盖会话创建、恢复与每轮发送。暂停和后续纠偏包含审查清理及重新复审。验证缺失或问题未解决会阻止交付。
+
+Migration / 迁移：declare candidate files and check inputs; normally enable `verification[].execute: true` for approved local checks. Existing external receipts remain supported. New calls gain the loop automatically; old in-flight calls keep their original runtime. / 声明候选文件和测试输入，对已批准本地检查通常启用 execute。原有外部回执继续支持；新调用自动走闭环，旧调用保留原运行目录。
+
 ## 1.4.0 — 2026-10-16
 
 ACP is pinned to 0.72.0 for ZCode 3.15.3. Foreground prompt responses now provide stage usage, elapsed time and model-reported review counts without guessing missing tokens. Workflow checks bind args, role model mappings and explicit concurrency, and verify expanded native path inputs. Explicit workflows expose their tools locally; normal tasks remain disabled. A reusable implementation/review/repair/test sample is included. Fixes cover late response finalization and large input observation before log compaction. Headless installation omits upstream optional desktop packages.

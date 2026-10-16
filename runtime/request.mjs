@@ -3,6 +3,7 @@
 // rejected here, BEFORE any process is spawned.
 import { normalizeWorkspace } from './workspace-policy.mjs';
 import { normalizeVerification } from './verification.mjs';
+import { captureCheckExecutions } from './check-execution.mjs';
 import { normalizeDelivery, withDeliveryReview } from './delivery.mjs';
 import { PHASES } from './metrics.mjs';
 import { validateWorkflowInputs } from './workflow-contract.mjs';
@@ -62,6 +63,7 @@ export function normalizeRequest(config, raw) {
     throw new Error('request must be a JSON object');
   }
   if (typeof raw.cwd !== 'string' || !raw.cwd.trim()) fail('cwd', 'must be a non-empty string');
+  if (raw.nativeToolAllowlist !== undefined) fail('nativeToolAllowlist', 'reserved for internal review sessions');
   const action = raw.action ?? 'run';
   if (!ACTIONS.includes(action)) fail('action', `must be one of ${ACTIONS.join(', ')}`);
 
@@ -146,6 +148,7 @@ export function normalizeRequest(config, raw) {
   const workspace = normalizeWorkspace(raw.workspace, raw.cwd);
   validateWorkflowInputs(raw, config, thought);
   const delivery = normalizeDelivery(raw.delivery, { ...raw, action, workspace });
+  const verification = normalizeVerification(raw.verification);
   return Object.freeze({
     ...raw,
     action,
@@ -157,7 +160,7 @@ export function normalizeRequest(config, raw) {
     idleSeconds,
     prompts: withDeliveryReview(promptItems, delivery),
     workspace, delivery,
-    verification: normalizeVerification(raw.verification),
+    verification, checkExecutions: captureCheckExecutions(verification, raw.cwd),
     quotaSnapshots: asBool(raw.quotaSnapshots, 'quotaSnapshots'),
     nativeWorkflow: asBool(raw.nativeWorkflow, 'nativeWorkflow') || action.startsWith('workflow-'),
     waitForBackground: asBool(raw.waitForBackground, 'waitForBackground'),

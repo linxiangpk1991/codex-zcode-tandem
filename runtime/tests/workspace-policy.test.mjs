@@ -39,6 +39,17 @@ test('directory junction cannot extend ownership outside workspace', () => {
   assert.throws(() => normalizeWorkspace({ ownedPaths: ['src/link'] }, cwd), /inside cwd/);
 });
 
+test('verification artifacts remain protected even inside a broadly owned directory', () => {
+  const { cwd, request, decide } = fixture();
+  request.verification = [{ preparedFile: join(cwd, 'src', 'prepared.json'), receiptFile: join(cwd, 'src', 'receipt.json') }];
+  for (const file_path of ['src/prepared.json', 'src/receipt.json']) {
+    assert.equal(decide('Write', { file_path }).allowed, false);
+    assert.match(decide('Edit', { file_path }).reason, /controller\/runtime/);
+  }
+  assert.equal(decide('ApplyPatch', { patch: '*** Update File: src/owned.js\n*** Move to: src/receipt.json\n' }).allowed, false);
+  assert.equal(decide('Edit', { file_path: 'src/owned.js' }).allowed, true);
+});
+
 test('reviewed commands are exact; destructive Git and shell wrappers are not implicitly granted', () => {
   const { request, decide } = fixture();
   for (const command of request.workspace.commands) assert.equal(decide('Bash', { command }).allowed, true);

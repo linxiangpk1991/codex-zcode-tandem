@@ -120,6 +120,7 @@ test('child env pins engine/provider, isolates XDG, carries bindings, preserves 
   assert.equal(env.ZCODE_ACP_QUOTA_AUTO_RESUME, '0');
   assert.equal(env.ZCODE_DISALLOWED_TOOLS, 'WebSearch CronDelete');
   assert.deepEqual(JSON.parse(env.CODEX_ZCODE_BINDINGS), {
+    disallowedTools: ['WebSearch', 'CronDelete'],
     approvedWorkflowSha256: 'a'.repeat(64),
     approvedWorkflowModel: 'GLM-5.3-Flash',
     approvedWorkflowArgs: { task: 'bounded' },

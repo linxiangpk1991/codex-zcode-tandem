@@ -6,6 +6,8 @@ import { resolve, basename } from 'node:path';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const read = path => JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
+const importedPins = new WeakMap();
+const fileHash = path => existsSync(path) ? sha(readFileSync(path)) : null;
 export const argvHash = argv => sha(JSON.stringify(argv));
 
 export function sourceIdentity(cwd, files) {
@@ -51,9 +53,14 @@ function normalizeReceipt(raw) {
   throw new Error('Unsupported receipt; use the documented command receipt schema');
 }
 
-export function assessCheck({ preparedFile, receiptFile, failureClass = 'unclassified' }) {
+export function assessCheck(check) {
+  const { preparedFile, receiptFile, failureClass = 'unclassified' } = check;
   let prepared;
   try {
+    const pin = importedPins.get(check);
+    if (pin && (fileHash(preparedFile) !== pin.prepared || fileHash(receiptFile) !== pin.receipt)) {
+      throw new Error('Imported evidence changed after dispatch; controller handoff readback required');
+    }
     prepared = read(preparedFile);
     if (prepared.kind !== 'tandem-check-input' || prepared.commandSha256 !== argvHash(prepared.command)) {
       throw new Error('Invalid prepared check');
@@ -90,11 +97,18 @@ export function normalizeVerification(value) {
     if (!item || typeof item.preparedFile !== 'string' || typeof item.receiptFile !== 'string') {
       throw new Error('verification requires preparedFile and receiptFile');
     }
+    if (item.execute !== undefined && typeof item.execute !== 'boolean') throw new Error('verification.execute must be a boolean');
     if (item.failureClass && !['unclassified', 'product', 'fixture', 'environment', 'known_baseline'].includes(item.failureClass)) {
       throw new Error('Invalid failureClass');
     }
   }
-  return value;
+  return value.map(item => {
+    const check = Object.freeze({ ...item });
+    if (check.execute !== true) importedPins.set(check, {
+      prepared: fileHash(check.preparedFile), receipt: fileHash(check.receiptFile),
+    });
+    return check;
+  });
 }
 
 export function assessVerification(checks = []) {
