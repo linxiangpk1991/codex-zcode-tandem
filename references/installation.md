@@ -13,7 +13,7 @@ Clone the [public repository](https://github.com/linxiangpk1991/codex-zcode-tand
 From the source root:
 
 ```powershell
-npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 
@@ -102,4 +102,13 @@ To remove the skill, inspect and remove only its generated codex-zcode-tandem en
 | Entry already exists | Inspect the target and use --replace for the intended update. |
 | Skill missing from Codex | Reload skills/open a new chat; check the discovery directory and active Codex home. |
 | Quota unavailable | Resolve your subscription or wait; there is no automatic paid-channel switch. |
-| ACP_LOGIN_SHELL_FALLBACK | ACP 0.72.0 exposes no supported Windows skip switch. Inspect environment.toolPaths and check project tools using explicit executables/installed dispatchers in the inherited environment. Do not change SHELL or inject Bash to suppress this warning. |
+| ACP_LOGIN_SHELL_FALLBACK | ACP 0.85.3 exposes no supported Windows skip switch. Inspect environment.toolPaths and check project tools using explicit executables/installed dispatchers in the inherited environment. Do not change SHELL or inject Bash to suppress this warning. |
+
+
+## Authentication when upgrading
+
+The default `credentialSource: "desktop"` follows the ACP adapter's desktop authentication. A successful connection probe does not establish that OAuth credentials are valid for model requests. If a real task reports `project_token_invalid_response`, check the desktop login first. No paid API fallback is enabled.
+
+An installation that explicitly continues using its existing individual Coding Plan key can set `"credentialSource": "existing-coding-plan-key"` in its local `runtime/config.json`. This reads only the enabled `builtin:bigmodel-coding-plan` entry in the existing desktop legacy configuration and supplies it in memory to the same plan. It does not copy the key, modify desktop settings, accept team/Start Plan identities or try another authentication source after failure. Do not commit local config.
+
+Keep optional npm dependencies: the newer adapter uses platform-specific packages. Install with `npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund`.

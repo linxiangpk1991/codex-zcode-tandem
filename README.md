@@ -10,9 +10,11 @@ Tandem is a **Windows Codex skill for working with native ZCode over ACP (Agent 
 
 If you already use both tools and keep copying requirements and results between them, this project gives that handoff a repeatable shape.
 
-**Windows · Node 24.19.0 · ACP 0.72.0 · MIT**
+**Windows · Node 24.19.0 · ACP 0.85.3 · MIT**
 
 ## What it helps with
+
+**New in 1.6:** ACP 0.85.3 adds native `now`/`next` steering, multi-question forms, worktree identity checks and screenshot handoff with file hashes. The default independent review loop stays on; a delivered correction is never treated as proof that the code is finished. [How to use the new capabilities](references/collaboration-upgrade.md)
 
 **New in 1.5:** Every development handoff now runs independent review automatically: a fresh read-only session reviews the candidate, the original session repairs findings, authorized tests run, and a new session reviews the correction. Up to two repair rounds; unresolved findings or missing checks block delivery. No workflow example or opt-in flag is needed. [Default review loop](references/delivery.md)
 
@@ -33,7 +35,7 @@ For a one-line edit, a direct edit in Codex may be simpler. Tandem is most usefu
 
 ## Start here
 
-You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git, and **Node 24.19.0**. The current connection baseline is ZCode Desktop **3.15.3.8237** / CLI **0.16.9**. Other identities need their own connection and task checks.
+You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git, and **Node 24.19.0**. The current connection baseline is ZCode Desktop **3.18.2.10443** / CLI **0.17.1**. Other identities need their own connection and task checks.
 
 In PowerShell, choose a directory you will keep, then run:
 
@@ -41,7 +43,7 @@ In PowerShell, choose a directory you will keep, then run:
 git clone https://github.com/linxiangpk1991/codex-zcode-tandem.git
 Set-Location codex-zcode-tandem
 node.exe --version
-npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 

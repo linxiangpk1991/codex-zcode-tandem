@@ -4,6 +4,8 @@ import { realpathSync, existsSync, statSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
 import { sourceIdentity } from './verification.mjs';
 import { nativeToolName, assessBackgroundCompletion } from './policy.mjs';
+import { normalizeVisualArtifacts, verifyVisualArtifacts } from './visual-handoff.mjs';
+import { assertWorkspaceBinding } from './workspace-binding.mjs';
 
 export const REVIEW_LABEL = 'tandem:first-pass-review';
 const boundary = 'A fresh model review and real check receipts are required. Model review can miss defects; visual and final acceptance remain with the controller.';
@@ -26,7 +28,7 @@ export function normalizeDelivery(raw, request) {
   }
   const value = raw ?? {};
   for (const key of Object.keys(value)) {
-    if (!['candidateFiles', 'userPaths', 'validation', 'validationReason', 'visualReview'].includes(key)) {
+    if (!['candidateFiles', 'userPaths', 'validation', 'validationReason', 'visualReview', 'visualArtifacts'].includes(key)) {
       throw new Error(`Unknown delivery field: ${key}`);
     }
   }
@@ -52,7 +54,9 @@ export function normalizeDelivery(raw, request) {
   }
   const visualReview = value.visualReview ?? (userPaths.length ? 'controller' : 'not_required');
   if (!['controller', 'not_required'].includes(visualReview)) throw new Error('Invalid delivery.visualReview');
-  return { candidateFiles, userPaths, validation, validationReason, visualReview };
+  const visualArtifacts = normalizeVisualArtifacts(value.visualArtifacts);
+  if (visualArtifacts.length && visualReview !== 'controller') throw new Error('Visual artifacts require controller visual review');
+  return { candidateFiles, userPaths, validation, validationReason, visualReview, visualArtifacts };
 }
 
 export function withDeliveryReview(prompts, delivery) {
@@ -117,6 +121,10 @@ export function assessDelivery(request, report) {
   if (!request.delivery) return { status: 'not_applicable', boundary };
   const d = request.delivery, review = report.firstPassReview;
   const reasons = [];
+  try {
+    if (report.workspaceBinding) assertWorkspaceBinding(request.cwd, report.workspaceBinding);
+    verifyVisualArtifacts(request, report);
+  } catch (e) { reasons.push(e.message); }
   const result = { status: 'needs_review', review: review ?? null, reasons,
     validation: report.verification, visualReview: d.visualReview === 'controller' ? 'pending_controller' : 'not_required', boundary };
   if (report.status !== 'completed') reasons.push(`Invocation is ${report.status}`);
@@ -124,6 +132,12 @@ export function assessDelivery(request, report) {
   if (review?.outcome !== 'completed') reasons.push(review?.reason ?? 'First-pass review not completed');
   if (review?.independent !== true || !review.sessionId || review.sessionId === review.implementationSessionId) reasons.push('Fresh independent review session required');
   if (review?.invalidated) reasons.push('A subsequent steering turn requires a fresh review');
+  // Sticky counter, deliberately NOT the bounded events log: ring eviction
+  // must never unblock a handoff that an unknown steer made uncertifiable.
+  if ((report.steering?.unknownCount ?? 0) > 0) {
+    reasons.push('A steering outcome is unknown; whether that requirement reached the agent cannot be certified');
+  }
+  if (report.toolPolicyDegraded) reasons.push('Native tool policy was not applied on this backend (toolDenylist rejected); tool constraints cannot be certified');
   if (report.backgroundTasks?.length || report.workflowRunIds?.length) {
     const completion = assessBackgroundCompletion({ tasks: report.backgroundTasks,
       notificationState: report.workflow?.notificationState, runs: report.workflow?.runs,

@@ -20,7 +20,7 @@ A saved session, structured progress, queued follow-ups, explicit pauses and nat
 
 ## Can Codex talk to ZCode while it works?
 
-Codex can read progress immediately and submit a question or correction. The message runs at the next safe foreground turn boundary, before remaining phases. It cannot interrupt a tool mid-call. Already-running workflow actors need an explicit amendment or pause/readback/resume.
+Codex can read progress immediately and submit a question or correction. A correction uses negotiated native now/next delivery; a question runs as a separate follow-up. The native engine may queue a correction until a safe boundary, and accepting it does not prove it was implemented. Already-running workflow actors need an explicit amendment or pause/readback/resume.
 
 ## Can I use my Coding Plan? Is an API key included?
 

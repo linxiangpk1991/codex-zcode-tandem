@@ -21,12 +21,17 @@ import { ClientInbox } from './inbox.mjs';
 import { observeWorkflowBinding } from './workflow-observation.mjs';
 import { boundWorkflowEvents } from './evidence.mjs';
 import {
-  assessBackgroundCompletion, buildPendingInput, classifyPermissionRequest, decideToolPermission,
-  isTool, mergeBackgroundTask, nativeToolName, selectOption,
+  assessBackgroundCompletion, isTool, mergeBackgroundTask, nativeToolName,
 } from './policy.mjs';
 import { spawnTransport, probeNativeCliVersion } from './transport.mjs';
 import { TaskMetrics } from './metrics.mjs';
 import { createTurnRunner } from './turns.mjs';
+import { createSteeringController } from './steering.mjs';
+import { createInteractions } from './interactions.mjs';
+import { matchesAnswer } from './question-form.mjs';
+import { captureWorkspaceBinding, assertWorkspaceBinding } from './workspace-binding.mjs';
+import { captureVisualArtifacts } from './visual-handoff.mjs';
+import { observeNativeOutcome } from './native-outcome.mjs';
 import runtimePackage from './package.json' with { type: 'json' };
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -102,6 +107,8 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     bytes: 0, needsAttention: false, notificationState: null,
     activeTurn: null, promptInFlight: false, promptPromise: null,
     steers: [], answers: new Map(), pausing: false, pausePayload: null, pauseCommandId: null,
+    steeringSupport: { supported: false, timings: [] }, steerRevision: 0,
+    steerDrainActive: false, steerDrainChars: 0,
     pausePromise: null, pauseError: null,
     waitingBackground: false, lastStatusRefresh: 0, boundRunsSent: new Set(),
     warnings: [], configOptions: [], quota: null, nativeCliVersion: null,
@@ -134,6 +141,19 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
   let transport = null;
   const { runPromptTurn, recordTurn, interruptTurn } = createTurnRunner({ st, tracker, report,
     request, config, metrics: st.metrics, getTransport: () => transport });
+  const steerCtl = createSteeringController({ st, tracker, report, config,
+    getTransport: () => transport, runPromptTurn, recordTurn, writeResultEarly,
+    terminal: () => terminal(), delay, deadlineAt });
+  st.beforeForegroundTurn = async () => {
+    assertWorkspaceBinding(cwd, report.workspaceBinding);
+    await steerCtl.awaitTurnGate();
+  };
+  const { handlePermission, handleElicitation } = createInteractions({ st, tracker, report, config,
+    request, scopeObserver, warn, observeRun, bindRun, deadlineAt, delay });
+  st.onForegroundTurnSettled = steerCtl.onForegroundTurnSettled;
+  // The ping reply travels on the same FIFO IPC channel as native events.
+  // Waiting after the ACP response drains earlier event notifications first.
+  st.flushNativeEvents = () => transport.ipcCall('ping');
   const nativePids = new Set();
   let policyResolve = null;
   const policyPromise = new Promise(r => { policyResolve = r; });
@@ -192,6 +212,23 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
         warn(message.reason ?? 'Native policy denied a tool');
         tracker.touch({ type: 'permission_denied', nativeName: message.toolName, reason: message.reason });
         break;
+      case 'tool_policy_degraded':
+        // The backend rejected toolDenylist, so upstream dropped it and the
+        // declared tool policy is NOT applied on this backend. Delivery must
+        // be refused on this evidence.
+        report.toolPolicyDegraded = true;
+        warn(`TOOL_POLICY_NOT_APPLIED: ${message.reason ?? 'native tool denylist was dropped'}`);
+        tracker.flagEvidence('toolPolicyDegraded');
+        tracker.touch({ type: 'tool_policy_degraded', reason: message.reason ?? null });
+        break;
+      case 'steer_event':
+        // Slim turn.steerQueued / turn.steerDrained forwarded by the bridge
+        // guard — the only proof that completes a queued steer.
+        steerCtl.onSteerEvent(message);
+        break;
+      case 'native_turn':
+        observeNativeOutcome(st, message);
+        break;
       case 'bridge_error':
         void interrupt('failed', message.error);
         break;
@@ -227,6 +264,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
             tracker.flagEvidence('responseTruncated');
           }
           if (tracker.state.currentTurn) tracker.state.currentTurn.chars = st.activeTurn.chars;
+          tracker.noteActivity();
+        } else if (st.steerDrainActive) {
+          // Output of a natively drained steer turn (no runner-owned turn):
+          // observed, bounded, never counted as this run's response or replay.
+          st.steerDrainChars += text.length;
           tracker.noteActivity();
         } else {
           tracker.noteReplay(text.length); // historical replay, not this turn
@@ -345,108 +387,6 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     tracker.addWorkflowRun(runId, status);
   }
 
-  // ---------- permission requests ----------
-  async function handlePermission(p) {
-    if (st.finalized || st.pausing) return { outcome: { outcome: 'cancelled' } };
-    const toolCallId = p?.toolCall?.toolCallId ?? '';
-    const cls = classifyPermissionRequest(p, id => st.trackedToolCalls.get(id));
-    if (!toolCallId) {
-      st.needsAttention = true;
-      report.needsAttention = true;
-      warn('permission request without toolCallId — denying');
-      return { outcome: { outcome: 'cancelled' } };
-    }
-    if (cls.kind === 'plan_approval') {
-      st.needsAttention = true;
-      tracker.setPendingInput(buildPendingInput({
-        interactionId: toolCallId, kind: cls.kind, nativeName: cls.nativeName,
-        title: p.toolCall?.title, options: p.options, rawInput: p.toolCall?.rawInput,
-      }));
-      return { outcome: { outcome: 'cancelled' } };
-    }
-    if (cls.kind === 'question') {
-      const pi = buildPendingInput({
-        interactionId: toolCallId, kind: cls.kind, nativeName: cls.nativeName,
-        title: p.toolCall?.title, options: p.options, rawInput: p.toolCall?.rawInput,
-      });
-      tracker.setPendingInput(pi);
-      const answer = await waitForAnswer(pi);
-      if (st.finalized) return { outcome: { outcome: 'cancelled' } };
-      tracker.setPendingInput(null);
-      if (answer.kind === 'answer') {
-        tracker.recordControl(answer.commandId, 'answer', 'started');
-        tracker.recordControl(answer.commandId, 'answer', 'completed',
-          `answered ${pi.interactionId} with ${answer.optionId}`);
-        return { outcome: { outcome: 'selected', optionId: answer.optionId } };
-      }
-      if (answer.kind === 'invalid') {
-        tracker.recordControl(answer.commandId, 'answer', 'rejected', answer.why);
-        return { outcome: { outcome: 'cancelled' } };
-      }
-      if (answer.kind === 'timeout') {
-        throw new Error('Task deadline reached while a question was pending');
-      }
-      return { outcome: { outcome: 'cancelled' } }; // paused/cancelled
-    }
-    const meta = st.trackedToolCalls.get(toolCallId);
-    const rawInput = p.toolCall?.rawInput ?? scopeObserver.input(toolCallId) ?? meta?.rawInput;
-    const decision = decideToolPermission({
-      request, nativeName: cls.nativeName, acpKind: meta?.kind, rawInput,
-    });
-    if (cls.nativeName === 'ResumeWorkflowRun' && p.toolCall?.rawInput?.run_id === tracker.state.workflow.predecessorRunId) {
-      decision.allowed = false; decision.reason = 'superseded predecessor cannot be resumed in this invocation';
-    }
-    const option = selectOption(p.options, decision.allowed);
-    if (st.permissions.length >= config.maxPermissions) {
-      st.permissions.shift();
-      tracker.flagEvidence('permissionsTruncated');
-    }
-    st.permissions.push({
-      toolCallId,
-      nativeName: cls.nativeName, kind: meta?.kind ?? null, allowed: decision.allowed,
-      reason: decision.reason, binding: decision.binding, title: p.toolCall?.title ?? null,
-      optionId: option?.optionId ?? null, granted: decision.allowed && !!option,
-      rawInput: compact(rawInput),
-    });
-    if (decision.allowed && option) {
-      const runId = p.toolCall?.rawInput?.run_id;
-      if (cls.nativeName === 'ResumeWorkflowRun' && typeof runId === 'string') {
-        observeRun(runId, 'resuming');
-        bindRun(runId);
-      }
-      tracker.touch({ type: 'permission', nativeName: cls.nativeName, allowed: true });
-      return { outcome: { outcome: 'selected', optionId: option.optionId } };
-    }
-    st.needsAttention = true;
-    report.needsAttention = true;
-    tracker.touch({ type: 'permission_denied', nativeName: cls.nativeName, reason: decision.reason });
-    return option
-      ? { outcome: { outcome: 'selected', optionId: option.optionId } }
-      : { outcome: { outcome: 'cancelled' } };
-  }
-
-  function compact(value) {
-    const json = JSON.stringify(value);
-    return json && json.length > config.compactByteLimit
-      ? { truncated: true, preview: json.slice(0, config.compactByteLimit) } : value;
-  }
-
-  async function waitForAnswer(pi) {
-    for (;;) {
-      if (st.pausing || st.finalized) return { kind: 'cancelled', why: st.pausing ? 'paused' : 'finalized' };
-      const queued = st.answers.get(pi.interactionId);
-      if (queued) {
-        st.answers.delete(pi.interactionId);
-        const offered = pi.options.some(o => o.optionId === queued.optionId);
-        return offered
-          ? { kind: 'answer', optionId: queued.optionId, commandId: queued.commandId }
-          : { kind: 'invalid', commandId: queued.commandId, why: `optionId not offered: ${queued.optionId}` };
-      }
-      if (Date.now() >= deadlineAt) return { kind: 'timeout' };
-      await delay(200);
-    }
-  }
-
   // ---------- control inbox ----------
   async function pollInboxOnce() {
     if (st.finalized) return;
@@ -473,8 +413,7 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
         } else if (st.finalized) {
           tracker.recordControl(cmd.id, cmd.action, 'rejected', 'invocation already finalized');
         } else {
-          st.steers.push({ id: cmd.id, action: cmd.action, text: cmd.payload.message });
-          tracker.recordControl(cmd.id, cmd.action, 'queued', 'steer queued for next foreground boundary');
+          steerCtl.dispatch(cmd); // live when negotiated+running; boundary queue otherwise
         }
         break;
       }
@@ -486,13 +425,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       }
       case 'answer': {
         const pi = tracker.state.pendingInput;
-        if (pi?.kind !== 'question' || pi.interactionId !== cmd.payload.interactionId
-          || !pi.options.some(o => o.optionId === cmd.payload.optionId)
+        if (!matchesAnswer(pi, cmd.payload)
           || st.answers.has(pi.interactionId)) {
           tracker.recordControl(cmd.id, 'answer', 'rejected', 'stale, duplicate, or non-question answer');
           break;
         }
-        st.answers.set(cmd.payload.interactionId, { optionId: cmd.payload.optionId, commandId: cmd.id });
+        st.answers.set(cmd.payload.interactionId, { ...cmd.payload, commandId: cmd.id });
         break;
       }
       case 'workflow-status':
@@ -562,40 +500,16 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
 
   // ---------- turns ----------
   async function drainSteers() {
-    while (st.steers.length > 0 && !terminal() && !st.needsAttention) {
-      const steer = st.steers.shift();
-      (st.steeringRequirements ??= []).push(steer.text);
-      if (report.firstPassReview) report.firstPassReview.invalidated = true;
-      const label = `steer:${steer.id.slice(-8)}`;
-      tracker.setPhase(tracker.state.phase.index, label);
-      tracker.recordControl(steer.id, steer.action, 'started');
-      try {
-        const result = await runPromptTurn({ label, text: steer.text });
-        recordTurn(label, result);
-        writeResultEarly();
-        if (result.stopReason === 'end_turn' && !st.needsAttention) {
-          tracker.recordControl(steer.id, steer.action, 'completed', `turn ended end_turn (${result.chars} chars)`);
-        } else if (!st.pausing) {
-          tracker.recordControl(steer.id, steer.action, 'rejected', `turn ended ${result.stopReason}`);
-        } else {
-          tracker.recordControl(steer.id, steer.action, 'rejected', `paused mid-turn (${result.stopReason})`);
-        }
-      } catch (e) {
-        if (st.finalized) return;
-        if (st.pausing) {
-          tracker.recordControl(steer.id, steer.action, 'rejected', `paused: ${e.message}`);
-        } else {
-          tracker.recordControl(steer.id, steer.action, 'rejected', e.message);
-          throw e;
-        }
-      }
-    }
+    await steerCtl.drain();
   }
 
   async function runPhases() {
     for (let index = 0; index < request.prompts.length; index += 1) {
       if (terminal() || st.needsAttention) break;
       await drainSteers();
+      if (terminal() || st.needsAttention) break;
+      const settled = await steerCtl.settleBeforeCompletion(config.steerDrainWaitMs);
+      if (!settled.ok) throw new Error(settled.reason);
       if (terminal() || st.needsAttention) break;
       const item = request.prompts[index];
       if (item.deliveryReview) { await quality(); continue; }
@@ -759,6 +673,10 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     report.finishedAt = new Date().toISOString();
     interruptTurn();
     report.diagnostics = transport ? redact(transport.stderr()) : null;
+    // Unsettled steering must survive the close — pending native inputs and
+    // in-flight admissions are recorded, never silently dropped.
+    const steerPending = steerCtl.pendingAtClose();
+    if (steerPending && report.steering) report.steering.pendingAtClose = steerPending;
     if (request.quotaSnapshots && transport && status === 'completed') {
       report.quotaSnapshots.after = await captureQuota(transport.conn);
     }
@@ -783,6 +701,15 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
           { model: report.modelEffective, thought: report.thoughtEffective, mode: report.modeEffective });
       } catch {
         report.nativeIdentity.probeRecord = { recorded: false, reason: 'Local probe cache could not be written.' };
+      }
+    }
+    if (request.delivery && report.workspaceBinding && status === 'completed') {
+      try {
+        assertWorkspaceBinding(cwd, report.workspaceBinding);
+        report.visualEvidence = captureVisualArtifacts(cwd, request.delivery.visualArtifacts ?? [], report.firstPassReview?.candidateSha256);
+      } catch (e) {
+        status = report.status = 'needs_attention'; report.error = e.message; st.needsAttention = true;
+        tracker.setStatus(status); tracker.setError(e.message);
       }
     }
     completeReport(report, request, paths);
@@ -835,11 +762,12 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       ipcTimeoutMs: config.bridgeIpcTimeoutMs,
     });
     tracker.setBridgePid(transport.pid);
-    transport.on({ sessionUpdate: handleUpdate, requestPermission: handlePermission,
+    transport.on({ sessionUpdate: handleUpdate, requestPermission: handlePermission, createElicitation: handleElicitation,
       turnState: params => {
         if (st.finalized || params?.sessionId !== st.sessionId || typeof params.running !== 'boolean') return;
         tracker.state.nativeActivity = { running: params.running, observedAt: new Date().toISOString(),
           scope: 'session busy state; includes compaction and is not correlated to a prompt' };
+        steerCtl.noteTurnState(params.running);
         tracker.noteActivity();
       } });
 
@@ -850,10 +778,11 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
     const init = await transport.conn.initialize({
       protocolVersion: 1,
       clientInfo: { name: 'codex-zcode-native-v3', version: runtimePackage.version },
-      clientCapabilities: {}, // no elicitation: all interactions arrive as request_permission
+      clientCapabilities: { elicitation: { form: {} } }, // ordinary structured questions; approvals stay separate
     });
     st.acpVersion = init?.agentInfo?.version ?? null;
     st.agentInfo = init?.agentInfo ?? null;
+    steerCtl.negotiate(init); // _meta.steering: native live steer vs boundary queue
     if (request.quotaSnapshots) report.quotaSnapshots = { before: await captureQuota(transport.conn), after: null };
 
     if (request.action === 'quota') {
@@ -864,6 +793,9 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       return { exitCode, report };
     }
 
+    report.workspaceBinding = captureWorkspaceBinding(cwd);
+    if (request.workspaceBinding) assertWorkspaceBinding(cwd, request.workspaceBinding);
+    report.credentialSource = config.credentialSource;
     tracker.setStatus('initializing');
     if (request.sessionId) {
       await transport.conn.resumeSession({ sessionId: request.sessionId, cwd, mcpServers: [] });
@@ -952,6 +884,16 @@ export async function runTask({ request, config, cwd, invocationId = randomUUID(
       await drainSteers();
       if (!report.firstPassReview?.invalidated) break;
       await quality();
+    }
+    // Completion needs every live steer settled and every queued steer PROVEN
+    // drained by its real turn.steerDrained event; bounded, else needs_attention.
+    if (!st.interruptReason && !st.pausing && !st.needsAttention) {
+      const steerSettlement = await steerCtl.settleBeforeCompletion(config.steerDrainWaitMs);
+      if (!steerSettlement.ok) {
+        warn(steerSettlement.reason);
+        exitCode = await finalize('needs_attention', { error: steerSettlement.reason });
+        return { exitCode, report };
+      }
     }
     const finalStatus = st.interruptReason ?? (st.pausing ? 'paused' : st.needsAttention ? 'needs_attention' : 'completed');
     exitCode = await finalize(finalStatus);

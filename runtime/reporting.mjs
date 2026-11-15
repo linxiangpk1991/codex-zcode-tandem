@@ -122,6 +122,7 @@ export function completeReport(report, request, paths) {
     invocationId: report.invocationId, status: report.status,
     model: report.modelEffective, thought: report.thoughtEffective,
     sessionId: report.sessionId, workflowRunIds: report.workflowRunIds,
+    workspaceBinding: report.workspaceBinding, visualEvidence: report.visualEvidence,
     metrics: report.metrics,
     verification: report.verification, delivery: report.delivery, qualityLoop: report.qualityLoop ?? null, controls: report.controls.slice(-20).map(c => ({
       id: c.id, action: c.action, state: c.state, submittedAt: c.submittedAt,

@@ -51,3 +51,6 @@ scope-observer keeps bounded policy-relevant inputs before log compaction and se
 `delivery.mjs` owns automatic first-pass review, candidate binding and handoff readiness. It reuses verification receipts; it does not execute tests or grant independent acceptance.
 
 quality-loop owns fresh review, bounded repair and validation. check-execution runs only pre-captured authorized argument lists. runner owns cancellation and cleanup across sessions; delivery decides readiness.
+
+
+The 1.6 runtime separates steering admission/drain tracking (`steering`), native outcome observation (`native-guards`/`native-outcome`), questions and form validation (`interactions`/`question-form`), directory identity (`workspace-binding`) and image provenance (`visual-handoff`). `credential-source` is an explicit local migration choice; desktop authentication stays the default. Existing policy, quality-loop and delivery modules still own authorization, review and handoff readiness.

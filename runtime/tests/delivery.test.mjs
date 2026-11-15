@@ -75,6 +75,14 @@ test('pause, late steering and candidate changes invalidate reviewed status', t 
   f.review.invalidated = true;
   assert.equal(assessDelivery(f.request, f.report).status, 'needs_review');
   delete f.review.invalidated;
+  // Sticky unknown steering: even with the bounded events log fully evicted,
+  // the counter keeps the handoff blocked.
+  const unknown = assessDelivery(f.request, { ...f.report,
+    steering: { unknownCount: 1, events: [] } });
+  assert.equal(unknown.status, 'needs_review');
+  assert.match(unknown.reasons.join(), /steering outcome is unknown/);
+  assert.equal(assessDelivery(f.request, { ...f.report,
+    steering: { unknownCount: 0, events: [] } }).status, 'ready_for_controller_review');
   writeFileSync(join(f.cwd, 'source.mjs'), 'export const value = 2;');
   assert.match(assessDelivery(f.request, f.report).reasons.join(), /changed after review/);
 });

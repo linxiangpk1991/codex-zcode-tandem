@@ -63,7 +63,7 @@ Missing receipts are `not_run`; changed inputs are `stale`; command or time mism
 
 ## Give steering a useful boundary
 
-Choose coherent `prompts` phases: plan/compatibility, implementation, tests, self-review as appropriate. Avoid both one turn per command and an hour of work inside the first turn. Queued steering runs after the current foreground turn and before the next planned phase.
+Choose coherent `prompts` phases: plan/compatibility, implementation, tests, self-review as appropriate. Avoid both one turn per command and an hour of work inside the first turn. Native now/next steering reports actual admission and drain events; the serial boundary queue remains the fallback.
 
 Controls retain `submittedAt`, `acceptedAt`, `startedAt` and `completedAt`. `queueDurationMs` measures submission to start; `executionDurationMs` measures execution. A queue older than five minutes shows `waiting_for_foreground_boundary` without polling the model. Pause rejects unexecuted messages; it does not replay them automatically.
 
@@ -71,7 +71,7 @@ New progress files also bind runtimeRoot. Mutating controls must use that runtim
 
 ## Diagnose startup and read a smaller handoff
 
-ACP 0.72.0 probes the environment using POSIX `-l -c env -0` arguments. When SHELL points to PowerShell or pwsh this may fail and fall back to the inherited environment. Tandem preserves stderr and reports `ACP_LOGIN_SHELL_FALLBACK`. It does not patch the dependency or rewrite global PATH. A successful session proves native startup, not the availability of project tools. Child Python processes explicitly use UTF-8.
+ACP 0.85.3 probes the environment using POSIX `-l -c env -0` arguments. When SHELL points to PowerShell or pwsh this may fail and fall back to the inherited environment. Tandem preserves stderr and reports `ACP_LOGIN_SHELL_FALLBACK`. It does not patch the dependency or rewrite global PATH. A successful session proves native startup, not the availability of project tools. Child Python processes explicitly use UTF-8.
 
 Set `summaryFile` for a compact status, verification result, recent controls and evidence boundaries. Full details stay in `resultFile`. `previewTruncated` means a turn preview exceeds 2000 characters; the old `truncated` alias remains for compatibility. `evidence.*Truncated` describes retained full records. Unmeasured transport bytes are `null`.
 

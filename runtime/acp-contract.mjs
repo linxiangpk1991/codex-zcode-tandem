@@ -6,13 +6,15 @@
 // Verified against the installed dist (read-only), not guessed from docs:
 //   - session modes: plan/build/edit/guarded/yolo/auto (guarded is new in
 //     backend 3.15.1; "auto" stays wire-valid but is not advertised);
-//   - upstream 0.72.0 retries session/create WITHOUT the mode key when a
-//     pre-3.15 backend rejects "guarded" (strict zod enum), silently leaving
-//     the backend default active — so an effective-mode divergence must fail
-//     the invocation, never pass as cosmetic.
+//   - upstream (verified present in 0.72.0 and still in 0.85.3,
+//     handlers/session.js "Retry without the mode key") retries
+//     session/create WITHOUT the mode key when a pre-3.15 backend rejects
+//     "guarded" (strict zod enum), silently leaving the backend default
+//     active — so an effective-mode divergence must fail the invocation,
+//     never pass as cosmetic.
 
 /** The only zcode-acp-server version this tree is validated against. */
-export const PINNED_ACP_VERSION = '0.72.0';
+export const PINNED_ACP_VERSION = '0.85.3';
 
 /** Session modes the isolated ACP config may pin (upstream SESSION_MODES). */
 export const ISOLATED_SESSION_MODES = Object.freeze(['plan', 'build', 'edit', 'guarded', 'yolo', 'auto']);

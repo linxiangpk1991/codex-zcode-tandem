@@ -1,7 +1,7 @@
 // control.mjs — the operator's control CLI against a LIVE invocation.
 //
 //   node control.mjs --progress PROGRESS.json --action status
-//   node control.mjs --progress PROGRESS.json --action steer --message "..."
+//   node control.mjs --progress PROGRESS.json --action steer --message "..." [--priority now|next]
 //   node control.mjs --progress PROGRESS.json --action ask --message "..."
 //   node control.mjs --progress PROGRESS.json --action pause [--no-stop-workflow]
 //   node control.mjs --progress PROGRESS.json --action answer --interactionId <id> --optionId <opt>
@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { readJsonFile, writeJsonAtomic } from './jsonio.mjs';
 import { validateControlPayload } from './inbox.mjs';
+import { matchesAnswer } from './question-form.mjs';
 
 /** Statuses in which the owning client still polls the inbox. */
 export const LIVE_STATES = new Set(['starting', 'initializing', 'running', 'waiting_background', 'needs_input', 'idle_window']);
@@ -62,9 +63,7 @@ export function validateControlContext(progress, action, payload, { isAlive = is
   if (action === 'answer' && !progress.pendingInput) {
     return { ok: false, why: 'no pending input to answer' };
   }
-  if (action === 'answer' && (progress.pendingInput.kind !== 'question'
-    || progress.pendingInput.interactionId !== payload.interactionId
-    || !progress.pendingInput.options?.some(o => o.optionId === payload.optionId))) {
+  if (action === 'answer' && !matchesAnswer(progress.pendingInput, payload)) {
     return { ok: false, why: 'answer must match the exact pending ordinary question and option' };
   }
   if (action?.startsWith('workflow-') && action !== 'workflow-status' && !progress.workflowRunIds?.length) {
@@ -86,6 +85,8 @@ export function compactStatus(progress) {
       kind: progress.pendingInput.kind,
       question: progress.pendingInput.question,
       options: progress.pendingInput.options?.map(o => o.optionId),
+      format: progress.pendingInput.format,
+      schema: progress.pendingInput.schema,
     } : null,
     workflow: progress.workflow,
     workflowRunIds: progress.workflowRunIds,
@@ -136,8 +137,15 @@ function parseArgs(argv) {
 function payloadFromArgs(action, args) {
   const payload = {};
   if (action === 'steer' || action === 'ask') payload.message = args.message;
+  // Live-steer timing: "now" injects into the running turn, "next" queues
+  // behind it. Only steer accepts it; ask stays a serialized follow-up turn.
+  if (action === 'steer' && args.priority !== undefined) payload.priority = args.priority;
   if (action === 'pause' && args.noStopWorkflow) payload.stopWorkflow = false;
-  if (action === 'answer') { payload.interactionId = args.interactionId; payload.optionId = args.optionId; }
+  if (action === 'answer') {
+    payload.interactionId = args.interactionId;
+    if (args['answers-file'] ?? args.answersFile) payload.answers = readJsonFile(args['answers-file'] ?? args.answersFile);
+    else payload.optionId = args.optionId;
+  }
   if (action !== 'status' && action !== 'pause' && action !== 'answer') {
     if (args.runId !== undefined) payload.runId = args.runId;
     if (args.afterSequence !== undefined) payload.afterSequence = Number(args.afterSequence);

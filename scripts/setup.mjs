@@ -61,8 +61,8 @@ export function inspectSetup(args, { root = ROOT, home = homedir(), env = proces
   if (args['--provider-file'] && !isFile(config.providerFile)) failures.push('--provider-file 指定的自定义供应商配置不存在；它不是 Coding Plan 登录的必备文件。');
   if (!isFile(config.taskkillPath)) failures.push('未找到 Windows taskkill.exe，无法保证任务进程清理。');
   const dependency = join(runtime, 'node_modules', 'zcode-acp-server', 'package.json');
-  if (!isFile(dependency)) failures.push('尚未安装依赖；在源码目录执行 npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund。');
-  else if (JSON.parse(readFileSync(dependency, 'utf8')).version !== PINNED_ACP_VERSION) failures.push('ACP 依赖不是锁定的 0.72.0，请重新执行 npm ci。');
+  if (!isFile(dependency)) failures.push('尚未安装依赖；在源码目录执行 npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund。');
+  else if (JSON.parse(readFileSync(dependency, 'utf8')).version !== PINNED_ACP_VERSION) failures.push(`ACP 依赖不是锁定的 ${PINNED_ACP_VERSION}，请重新执行 npm ci。`);
   const standard = join(home, '.agents', 'skills', 'codex-zcode-tandem');
   const legacy = join(resolve(env.CODEX_HOME || join(home, '.codex')), 'skills', 'codex-zcode-tandem');
   let skillDir;

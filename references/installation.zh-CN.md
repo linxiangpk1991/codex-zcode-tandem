@@ -2,7 +2,7 @@
 
 [English](installation.md) · [返回首页](../README.zh-CN.md)
 
-本版支持 Windows，固定 Node 24.19.0 和 ACP 0.72.0。可独立安装，不要求本机有作者的其他技能。使用者必须先安装 ZCode 并登录自己的 Coding Plan。
+本版支持 Windows，固定 Node 24.19.0 和 ACP 0.85.3。可独立安装，不要求本机有作者的其他技能。使用者必须先安装 ZCode 并登录自己的 Coding Plan。
 
 ## 1. 准备环境
 
@@ -13,7 +13,7 @@
 在源码目录执行：
 
 ```powershell
-npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
+npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 
@@ -59,7 +59,7 @@ node.exe scripts/setup.mjs --check
 
 成功且安装身份稳定的 probe 将连接配置与身份写入本源码目录的 `work/native-identity.json`；失败、清理未确认或安装变化不会刷新通过基线。缓存不读取凭据。自定义布局找不到相邻 `ZCode.exe` 时桌面版本为 null，并说明原因。
 
-ACP 0.72.0 没有受支持的 Windows 跳过入口，POSIX 登录探针失败仍显示 `ACP_LOGIN_SHELL_FALLBACK`。查看 `environment.toolPaths`，用项目工具的绝对可执行文件或已安装 dispatcher 检查继承环境；不要改 SHELL 或注入 Bash 来消除警告。
+ACP 0.85.3 没有受支持的 Windows 跳过入口，POSIX 登录探针失败仍显示 `ACP_LOGIN_SHELL_FALLBACK`。查看 `environment.toolPaths`，用项目工具的绝对可执行文件或已安装 dispatcher 检查继承环境；不要改 SHELL 或注入 Bash 来消除警告。
 
 通过仅代表路径、版本和依赖存在，不证明登录、额度或原生连接。用无模型推理的 probe 验证：
 
@@ -100,3 +100,12 @@ node.exe runtime/run-task.mjs work/probe-request.json
 | 配额不足 | 等待或由使用者处理自己的订阅，禁止自动切换付费渠道 |
 
 公开版安装名为 codex-zcode-tandem；已有 zcode-native 入口会保留，不会自动迁移。源码移动或 Node 路径变化后，需要重新安装入口。
+
+
+## 升级时的认证方式
+
+默认 `credentialSource: "desktop"` 跟随 ACP 的桌面认证。连接探针成功不代表 OAuth 凭据可用于推理；真实任务若返回 `project_token_invalid_response`，先检查桌面登录。不启用付费 API 回退。
+
+如果明确继续使用已有个人 Coding Plan key，可在本地 `runtime/config.json` 设置 `"credentialSource": "existing-coding-plan-key"`。它只读取桌面旧配置中已启用的 `builtin:bigmodel-coding-plan`，在内存中交给同一计划；不复制密钥、不修改桌面设置、不接受团队或 Start Plan 身份，也不会失败后换认证来源。不要提交本机 config.json。
+
+新版适配器使用平台相关的可选依赖，安装时保留它们：`npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund`。

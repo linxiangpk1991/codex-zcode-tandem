@@ -22,7 +22,7 @@ ${requirements}
 Candidate files: ${JSON.stringify(request.delivery.candidateFiles)}
 Functional paths: ${JSON.stringify(request.delivery.userPaths)}
 Check receipts: ${JSON.stringify(request.verification)}
-Report concrete in-scope defects. Do not turn unspecified behavior or hypothetical enhancements into blocking findings. Missing test evidence is a validation limitation, not a fabricated code defect. Do not claim visual acceptance.
+Report concrete in-scope defects. Do not turn unspecified behavior or hypothetical enhancements into blocking findings. Missing test evidence is a validation limitation, not a fabricated code defect; put it in summary, never openIssues. Do not claim visual acceptance. Keep prose short; do not repeat the implementation report.
 End with exactly one fenced tandem-review JSON block:
 \`\`\`tandem-review
 {"reviewedFiles":["relative/path"],"fixedIssues":[],"openIssues":[],"summary":"Evidence, concrete findings and limitations"}
@@ -37,7 +37,9 @@ export async function runQualityLoop({ request, config, report, st, tracker, dir
   const state = report.qualityLoop = { version: 1, status: 'reviewing', repairs: 0, reviews: [], checks: [] };
   const publish = status => { state.status = status; tracker.state.qualityLoop = state; tracker.write('quality'); writeResultEarly(); };
   const controller = st.qualityAbort = new AbortController();
-  const requirements = request.prompts.filter(p => !p.deliveryReview).map(p => p.text).join('\n\n')
+  // Built per round: a steer admitted during an earlier round (or while its
+  // review ran) must reach the NEXT fresh reviewer as a requirement.
+  const currentRequirements = () => request.prompts.filter(p => !p.deliveryReview).map(p => p.text).join('\n\n')
     + '\nLater steering:\n' + (st.steeringRequirements ?? []).join('\n');
   const runDeveloper = async (label, phase, text) => {
     publish(phase); tracker.setPhase(tracker.state.phase.index, label);
@@ -63,8 +65,9 @@ export async function runQualityLoop({ request, config, report, st, tracker, dir
     for (let round = 1; round <= MAX_REPAIRS + 1 && !terminal(); round++) {
       publish('reviewing');
       const before = candidateIdentity(request);
+      const revisionAtReviewStart = st.steerRevision;
       const childRequest = independentReviewRequest(request, config, directory, round,
-        Math.floor((deadlineAt - Date.now()) / 1000), requirements);
+        Math.floor((deadlineAt - Date.now()) / 1000), currentRequirements());
       const child = await runTask({ request: childRequest, config, cwd: request.cwd, deps, signal: controller.signal });
       const r = child.report;
       (report.reviewCleanup ??= []).push(...(r.cleanup ?? []).map(item => ({ ...item, reviewRound: round })));
@@ -80,6 +83,14 @@ export async function runQualityLoop({ request, config, report, st, tracker, dir
       }
       state.reviews.push(review); report.firstPassReview = review;
       if (review.outcome !== 'completed') { publish('blocked_review'); return; }
+      if (st.steerRevision > revisionAtReviewStart) {
+        // A steer was admitted while (or after) this review ran: its
+        // requirements never reached this reviewer. Never let the old review
+        // pass; re-review against the extended requirements.
+        review.invalidated = true;
+        if (round === MAX_REPAIRS + 1) { publish('blocked_steering'); return; }
+        continue;
+      }
       let issues = review.declaration.openIssues;
       if (!issues.length) {
         const verification = await validate();
@@ -87,6 +98,13 @@ export async function runQualityLoop({ request, config, report, st, tracker, dir
         if (candidateIdentity(request) !== review.candidateSha256) {
           review.invalidated = true;
           if (round === MAX_REPAIRS + 1) { publish('blocked_changed_candidate'); return; }
+          continue;
+        }
+        if (st.steerRevision > revisionAtReviewStart) {
+          // Same closure as above, at the pass gate: a steer admitted during
+          // validation must not let this review hand off as fresh.
+          review.invalidated = true;
+          if (round === MAX_REPAIRS + 1) { publish('blocked_steering'); return; }
           continue;
         }
         if ((request.delivery.validation === 'not_applicable' && !verification.checks.length)

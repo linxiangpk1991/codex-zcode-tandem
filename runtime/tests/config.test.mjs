@@ -92,7 +92,7 @@ test('isolated config pins the guarded opt-in; upstream vocabulary and mismatch 
   const isolated = buildIsolatedAcpConfig({ workflowMode: 'disabled', sessionMode: 'guarded' });
   assert.deepEqual(isolated.json.session, { mode: 'guarded' });
   assert.deepEqual(ISOLATED_SESSION_MODES, ['plan', 'build', 'edit', 'guarded', 'yolo', 'auto']);
-  assert.equal(PINNED_ACP_VERSION, '0.72.0');
+  assert.equal(PINNED_ACP_VERSION, '0.85.3');
   assert.match(modeMismatchError('guarded', 'yolo'), /requested guarded, effective yolo/);
   assert.match(modeMismatchError('guarded', 'yolo'), /session\/create without the mode/);
   assert.equal(modeMismatchError('build', 'plan'), 'mode selection mismatch: requested build, effective plan');
@@ -120,6 +120,7 @@ test('child env pins engine/provider, isolates XDG, carries bindings, preserves 
   assert.equal(env.ZCODE_ACP_QUOTA_AUTO_RESUME, '0');
   assert.equal(env.ZCODE_DISALLOWED_TOOLS, 'WebSearch CronDelete');
   assert.deepEqual(JSON.parse(env.CODEX_ZCODE_BINDINGS), {
+    credentialSource: 'desktop',
     disallowedTools: ['WebSearch', 'CronDelete'],
     approvedWorkflowSha256: 'a'.repeat(64),
     approvedWorkflowModel: 'GLM-5.3-Flash',

@@ -5,7 +5,7 @@
 // timestamp so a controller can distinguish a live phase from a stalled one.
 import { writeJsonAtomic } from './jsonio.mjs';
 
-const CONTROL_STATES = ['queued', 'accepted', 'started', 'completed', 'rejected', 'ignored'];
+const CONTROL_STATES = ['queued', 'accepted', 'started', 'completed', 'rejected', 'ignored', 'unknown'];
 
 export class ProgressTracker {
   constructor(opts) {
@@ -203,7 +203,7 @@ export class ProgressTracker {
     if (state === 'accepted') entry.acceptedAt ??= at;
     if (state === 'started') entry.startedAt ??= at;
     if (entry.startedAt) { entry.queueAgeMs = 0; entry.queueWarning = null; }
-    if (['completed', 'rejected', 'ignored'].includes(state)) entry.finishedAt = at;
+    if (['completed', 'rejected', 'ignored', 'unknown'].includes(state)) entry.finishedAt = at;
     if (state === 'completed') entry.completedAt = at;
     entry.queueDurationMs = entry.startedAt ? Date.parse(entry.startedAt) - Date.parse(entry.submittedAt) : null;
     entry.executionDurationMs = entry.startedAt && entry.finishedAt ? Date.parse(entry.finishedAt) - Date.parse(entry.startedAt) : null;

@@ -9,7 +9,7 @@ Use the native ZCode engine and the user's own Coding Plan. Preserve their chose
 
 This file's directory is the source root. The installed pointer records its actual location and Node executable. Resolve runtime/ and references/ from this source root, not from the user's project. Never borrow another person's paths or account.
 
-Windows and Node 24.19.0 are required; ACP is pinned to 0.72.0. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
+Windows and Node 24.19.0 are required; ACP is pinned to 0.85.3. Run runtime/run-task.mjs REQUEST.json. For installation issues, read [installation](references/installation.md), then use scripts/setup.mjs --check. [中文操作说明](references/skill.zh-CN.md).
 
 ## Default independent review before handoff
 
@@ -37,7 +37,7 @@ action=probe checks the connection and effective configuration without model inf
 
 After a desktop update, use read-only `setup --doctor` to compare Desktop/CLI/ACP versions and native entry SHA256. An unchanged CLI version does not mean unchanged source. Fast `setup --check` uses metadata and the last successful probe cache; ordinary tasks do not re-hash or launch extra version commands. A successful probe records connection compatibility, not inference or task acceptance.
 
-Read [live control](references/live-control.md) before querying, asking, steering, answering or pausing. New prompts run serially at safe boundaries. Pause does not undo writes. Read back unknown outcomes before continuing.
+Read [live control](references/live-control.md) before querying, asking, steering, answering or pausing. Negotiated steer uses native now/next delivery; ask stays serialized. Read [new collaboration capabilities](references/collaboration-upgrade.md) for forms, workspaceBinding on resume and visualArtifacts. Pause does not undo writes. Read back unknown outcomes before continuing.
 
 Do not switch to a paid provider on quota failure. Machine-wide auto-resume is disabled. Scheduling follow-ups requires a user request.
 

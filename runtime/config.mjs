@@ -22,6 +22,7 @@ export const DEFAULTS = Object.freeze({
   zcodeBin: discovered.zcodeBin,
   providerFile: discovered.providerFile,
   provider: 'builtin:bigmodel-coding-plan',
+  credentialSource: 'desktop',
   models: ['GLM-5.3', 'GLM-5.3-Flash'],
   defaultModel: 'GLM-5.3',
   thoughtLevels: ['low', 'high', 'max'],
@@ -48,6 +49,13 @@ export const DEFAULTS = Object.freeze({
   cleanupTimeoutMs: 10_000,
   gracefulCancelWaitMs: 15_000,
   bridgeIpcTimeoutMs: 30_000,
+  // How long a live-steer admission (_session/steering) may take before the
+  // outcome is declared unknown. An expired steer is never replayed.
+  steerAckTimeoutMs: 30_000,
+  // Bounded wait before 'completed' for queued steers to be proven drained by
+  // their real turn.steerDrained event; past the bound the run ends
+  // needs_attention instead of fabricating completion.
+  steerDrainWaitMs: 45_000,
   // Control inbox directory (sibling of the progress file by default).
   inboxDirName: '.zcode-v3-inbox',
   // Retention bounds for progress/result evidence.
@@ -93,6 +101,9 @@ export function buildConfig(overrides = {}, file = loadConfigFile()) {
     if (!CONFIG_KEYS.has(key)) throw new Error(`config has unsupported key: ${key}`);
   }
   const merged = { ...DEFAULTS, ...file, ...overrides };
+  if (!['desktop', 'existing-coding-plan-key'].includes(merged.credentialSource)) {
+    throw new Error('credentialSource must be desktop or existing-coding-plan-key');
+  }
   for (const key of ['provider', 'defaultThought']) {
     if (JSON.stringify(merged[key]) !== JSON.stringify(DEFAULTS[key])) {
       throw new Error(`config.${key} is a pinned native Coding Plan invariant`);
@@ -104,6 +115,12 @@ export function buildConfig(overrides = {}, file = loadConfigFile()) {
     }
   }
   if (!Number.isInteger(merged.queueWarningMs) || merged.queueWarningMs < 1000) throw new Error('queueWarningMs must be >= 1000');
+  if (!Number.isInteger(merged.steerAckTimeoutMs) || merged.steerAckTimeoutMs < 100) {
+    throw new Error('steerAckTimeoutMs must be an integer >= 100');
+  }
+  if (!Number.isInteger(merged.steerDrainWaitMs) || merged.steerDrainWaitMs < 200) {
+    throw new Error('steerDrainWaitMs must be an integer >= 200');
+  }
   for (const key of ['zcodeBin', 'providerFile', 'provider', 'taskkillPath']) {
     if (typeof merged[key] !== 'string' || !merged[key].trim()) {
       throw new Error(`config.${key} must be a non-empty string`);
@@ -209,6 +226,7 @@ export function buildChildEnv(config, paths, request, xdgHome) {
   env.PYTHONIOENCODING = 'utf-8';
   env.XDG_CONFIG_HOME = xdgHome;
   env.CODEX_ZCODE_BINDINGS = JSON.stringify({
+    credentialSource: config.credentialSource,
     disallowedTools: request.disallowedTools,
     nativeToolAllowlist: request.nativeToolAllowlist,
     approvedWorkflowSha256: request.approvedWorkflowSha256,

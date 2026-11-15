@@ -72,6 +72,9 @@ export async function spawnTransport({ bridgePath, cwd, env, onEvent,
       const reply = await handlers.requestPermission?.(params);
       return reply ?? { outcome: { outcome: 'cancelled' } };
     },
+    async createElicitation(params) {
+      return await handlers.createElicitation?.(params) ?? { action: 'decline' };
+    },
     async extNotification(method, params) {
       // The server emits two aliases for one state. Subscribe to exactly one.
       if (method === '_zcode/turnState') await handlers.turnState?.(params);

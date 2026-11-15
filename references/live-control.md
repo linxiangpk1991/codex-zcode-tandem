@@ -18,11 +18,11 @@ This reads a file; it does not call a model or interrupt work. Look at currentTu
 
 ```powershell
 node.exe runtime/control.mjs --progress work/example-progress.json --action ask --message 'What is finished, and what is blocking you?'
-node.exe runtime/control.mjs --progress work/example-progress.json --action steer --message 'Keep the existing API. Change only the input validation.'
+node.exe runtime/control.mjs --progress work/example-progress.json --action steer --priority now --message 'Keep the existing API. Change only the input validation.'
 node.exe runtime/control.mjs --progress work/example-progress.json --action pause
 ```
 
-A successful submission means the command was queued. Inspect controls.history and the command receipt to confirm execution. Ask/steer run in the same session at a safe foreground boundary, before later planned phases. A long prompt has no intermediate prompt boundary; split genuinely distinct phases when responsiveness matters.
+A successful submission puts the command in the inbox. Inspect controls.history and steering.events for the native outcome. Steer uses negotiated now/next delivery; ask runs as a serialized follow-up. Native admission, message delivery and completed work are different states. Unknown outcomes are never replayed automatically. See [forms and new steering](collaboration-upgrade.md).
 
 Steering does not rewrite instructions of an actor already running in a background workflow. Use a reviewed amendment or pause, read back effects, and resume with the revised plan.
 

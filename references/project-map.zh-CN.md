@@ -47,3 +47,6 @@ scope-observer 在日志压缩前保留有界的权限相关输入，将未知�
 `delivery.mjs` 负责自动首审、候选内容绑定和交付状态，复用已有验证回执，不执行测试、不授予独立验收。
 
 quality-loop 负责新会话审查、有限修复和验证；check-execution 仅执行预先捕获的授权 argv；runner 负责跨会话取消和清理；delivery 统一判定交付。
+
+
+1.6 的 steering 管理原生接收与送达；native-guards/native-outcome 观察真实回合结果；interactions/question-form 管理普通问答；workspace-binding 检查目录与 Git 身份；visual-handoff 记录截图来源。credential-source 仅承接明确选择的本机认证迁移。权限、默认审查与交接仍分别由 policy、quality-loop、delivery 负责。

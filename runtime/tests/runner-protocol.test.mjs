@@ -36,6 +36,20 @@ const ONDEMAND_POLICY = {
 
 import { FakeTransport } from './support/fake-transport.mjs';
 
+test('late native failure over IPC cannot pass an already resolved ACP end_turn', async () => {
+  let emitLate;
+  const run = beginRun({ raw: { prompts: ['p1'] }, fakeOpts: { script: ['hold'],
+    ipcHandlers: { ping: async () => { emitLate(); return { pong: true }; } } } });
+  emitLate = () => run.fake.emitEvent({ type: 'native_turn', kind: 'failed',
+    turnId: 'turn-late', acpSessionIds: ['sess-1'] });
+  await waitFor(() => run.fake.promptLog.length === 1);
+  run.fake.emitEvent({ type: 'native_turn', kind: 'started', turnId: 'turn-late', acpSessionIds: ['sess-1'] });
+  run.fake.resolvePrompt('p1', 'end_turn');
+  const { report, exitCode } = await run.task;
+  assert.equal(exitCode,1);assert.equal(report.status,'failed');
+  assert.match(report.error,/Native model turn failed/);
+});
+
 function makeTemp() {
   return mkdtempSync(join(tmpdir(), 'zcode-v3-runner-'));
 }
@@ -613,6 +627,34 @@ test('a guarded effective-mode fallback fails explicitly before any prompt runs'
   assert.equal(run.fake.promptLog.length, 0, 'no prompt may run under an unrequested mode');
 });
 
+test('the native account alias of the pinned provider completes and is reported verbatim', async () => {
+  // Real 0.85.3 probe shape: the registry resolves builtin:bigmodel-coding-plan
+  // to account:bigmodel-individual-coding-plan (same individual Coding Plan).
+  const run = beginRun({
+    raw: { prompts: ['p1'] },
+    fakeOpts: { script: ['end_turn'], modelReadback: 'account:bigmodel-individual-coding-plan\\GLM-5.3' },
+  });
+  const { exitCode, report } = await run.task;
+  assert.equal(exitCode, 0);
+  assert.equal(report.status, 'completed');
+  assert.equal(report.modelEffective, 'account:bigmodel-individual-coding-plan\\GLM-5.3',
+    'the native effective identity is preserved, never rewritten to the old spelling');
+  assert.equal(report.summary.model, report.modelEffective);
+  assert.equal(readJsonFile(run.progressPath).model.effective, report.modelEffective);
+});
+
+test('a substituted model under the aliased provider still fails the invocation', async () => {
+  const run = beginRun({
+    raw: { prompts: ['p1'] },
+    fakeOpts: { script: ['end_turn'],
+      modelReadback: 'account:bigmodel-individual-coding-plan\\GLM-5.3-Flash' },
+  });
+  const { exitCode, report } = await run.task;
+  assert.equal(exitCode, 1);
+  assert.match(report.error, /model selection mismatch: requested builtin:bigmodel-coding-plan\\GLM-5.3, effective account:bigmodel-individual-coding-plan\\GLM-5.3-Flash/);
+  assert.equal(run.fake.promptLog.length, 0, 'no prompt runs on an unrequested model');
+});
+
 test('a policy_denied arrival-guard event marks the run needs_attention', async () => {
   const run = beginRun({ raw: { prompts: ['p1', 'p2'] }, fakeOpts: { script: ['hold', 'end_turn'] } });
   await waitFor(() => run.fake.promptLog.length === 1, 3000, 'prompt');
@@ -646,7 +688,7 @@ test('probe action: readbacks without any prompt, reports versions', async () =>
   assert.equal(report.modelEffective, `builtin:bigmodel-coding-plan\\${report.modelRequested}`);
   assert.equal(report.modeEffective, 'build');
   assert.equal(report.thoughtEffective, 'max');
-  assert.equal(report.acpVersion, '0.72.0');
+  assert.equal(report.acpVersion, '0.85.3');
   assert.deepEqual(report.nativeCliVersion, { version: '3.9.9' });
   assert.equal(report.effectivePolicy.sessionMode, 'build');
   assert.equal(report.policyCoverage.mode, 'build');

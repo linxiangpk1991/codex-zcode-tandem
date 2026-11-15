@@ -8,7 +8,7 @@
 
 支持 Windows、Node 24.19.0。执行入口是 runtime/run-task.mjs REQUEST.json，控制入口是 runtime/control.mjs PROGRESS.json COMMAND.json。尚未安装或找不到原生引擎时，阅读 [安装与排障](installation.md)，先运行 scripts/setup.mjs --check。
 
-ACP 精确锁定 zcode-acp-server 0.72.0。每次调用使用隔离配置，不修改 ZCode 桌面全局设置。验证结果和限制见 [验收说明](acceptance.md)。
+ACP 精确锁定 zcode-acp-server 0.85.3。每次调用使用隔离配置，不修改 ZCode 桌面全局设置。验证结果和限制见 [验收说明](acceptance.md)。
 
 桌面更新后，运行只读 `setup --doctor` 比较桌面/CLI/ACP 版本及原生入口 SHA256；CLI 版本不变不代表源码未变。快速 `setup --check` 使用元数据及上次成功 probe 缓存，普通任务不重复启动版本命令或哈希。成功 probe 只记录连接兼容性，不证明真实推理或任务验收。
 
@@ -68,3 +68,6 @@ action=probe 可在无模型推理的情况下检查连接和实际配置。推�
 
 
 提示可声明 phase（implementation/review/repair/validation/other）。比较用量前读取 metrics 字段覆盖数；未知不是零。工作流参数、角色映射及显式并发值须匹配已审请求，详见[统计](metrics.zh-CN.md)与[工作流](native-workflows.zh-CN.md)。
+
+
+原生纠偏、多问题表单、续接时的 workspaceBinding 和视觉材料 visualArtifacts 见[新版协作说明](collaboration-upgrade.zh-CN.md)。截图保留待总控视觉复核状态。

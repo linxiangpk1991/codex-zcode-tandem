@@ -1,5 +1,19 @@
 # Changelog / 更新记录
 
+## 1.6.0 — 2026-11-16
+
+ACP is pinned to 0.85.3 for ZCode Desktop 3.18.2 / CLI 0.17.1. Native now/next steering reports admission and real drain receipts; unknown outcomes are not replayed, and active native turns must finish before review or handoff. Failed native turns cannot become successful merely because ACP returns end_turn. Independent review, repair and authorized verification remain the default.
+
+升级至 ACP 0.85.3，适配 ZCode 桌面 3.18.2 / CLI 0.17.1。原生 now/next 纠偏记录接收和真实送达；结果未知不重放，审查和交接前等待原生回合结束。原生失败不能被 ACP end_turn 误报为成功。独立复审、修复与已授权验证继续默认执行。
+
+Added structured multi-question answers, real worktree/HEAD binding and local screenshot provenance for a vision-capable controller. Approval requests remain separate from ordinary questions. Desktop authentication is the default; an explicit migration option can reuse an already configured individual Coding Plan key without copying it. No automatic provider or billing fallback.
+
+新增多题表单、worktree/HEAD 身份检查，以及交给视觉总控的本地截图来源记录。普通问答不能代替审批。默认跟随桌面认证；显式迁移选项可以沿用已有个人 Coding Plan key，不复制密钥，不自动切换供应商或计费渠道。
+
+Migration / 迁移：retain optional npm dependencies (`npm ci --ignore-scripts`), copy the previous trusted `workspaceBinding` when resuming, use `answers` for forms, and declare `visualArtifacts` when supplying screenshots. Screenshots remain pending visual review. / 安装时保留 npm 可选依赖，续接携带可信旧绑定；表单使用 answers，截图使用 visualArtifacts。图片存在不代表视觉验收通过。
+
+[English guide](references/collaboration-upgrade.md) · [中文说明](references/collaboration-upgrade.zh-CN.md)
+
 ## 1.5.0 — 2026-10-17
 
 Independent review is now the default development handoff. Fresh read-only sessions review the candidate, the original developer repairs concrete findings, authorized checks run, and a fresh session reviews the correction. Two repair rounds are allowed. Checks capture their exact argv before inference. Native tool restrictions are applied at session creation/resume and every send. Pause and late steering include reviewer cleanup and re-review. Missing checks or unresolved findings return a blocked handoff, not approval.

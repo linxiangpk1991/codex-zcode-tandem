@@ -12,7 +12,7 @@ function fixture(t) {
   mkdirSync(join(root, 'app', 'resources', 'glm'), { recursive: true });
   mkdirSync(join(root, 'runtime', 'node_modules', 'zcode-acp-server'), { recursive: true });
   writeFileSync(zcodeBin, 'native A');
-  writeFileSync(join(root, 'runtime', 'node_modules', 'zcode-acp-server', 'package.json'), '{"version":"0.72.0"}');
+  writeFileSync(join(root, 'runtime', 'node_modules', 'zcode-acp-server', 'package.json'), '{"version":"0.85.3"}');
   return { root, paths: { zcodeBin, nodeBin: process.execPath },
     probes: { cliProbe: async () => ({ version: '0.16.9' }), desktopProbe: async () => ({ version: '3.14.5' }) } };
 }

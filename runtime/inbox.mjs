@@ -16,10 +16,10 @@ export const CONTROL_ACTIONS = Object.freeze([
 export const STALE_MS = 10 * 60 * 1000;
 
 const ACTION_PAYLOAD_RULES = Object.freeze({
-  steer: { message: 'nonempty' },
+  steer: { message: 'nonempty', priority: 'steering-priority' },
   ask: { message: 'nonempty' },
   pause: { stopWorkflow: 'optional-bool' },
-  answer: { interactionId: 'nonempty', optionId: 'nonempty' },
+  answer: { interactionId: 'nonempty', optionId: 'optional-string', answers: 'optional-object' },
   'workflow-status': {},
   'workflow-events': { runId: 'nonempty', afterSequence: 'optional-int' },
   'workflow-stop': { runId: 'nonempty' },
@@ -38,8 +38,19 @@ export function validateControlPayload(action, payload) {
     const value = payload[key];
     if (rule === 'nonempty') {
       if (typeof value !== 'string' || !value.trim()) return { ok: false, why: `${key} must be a non-empty string` };
+    } else if (rule === 'optional-string') {
+      if (value !== undefined && (typeof value !== 'string' || !value.trim())) return { ok: false, why: `${key} must be nonempty` };
+    } else if (rule === 'optional-object') {
+      if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value)
+        || Buffer.byteLength(JSON.stringify(value)) > 32000)) return { ok: false, why: `${key} must be a bounded object` };
     } else if (rule === 'optional-bool') {
       if (value !== undefined && typeof value !== 'boolean') return { ok: false, why: `${key} must be a boolean` };
+    } else if (rule === 'steering-priority') {
+      // Live-steer timing for _session/steering (now | next). "ask" keeps its
+      // serial follow-up semantics and deliberately has no priority field.
+      if (value !== undefined && value !== 'now' && value !== 'next') {
+        return { ok: false, why: `${key} must be "now" or "next"` };
+      }
     } else if (rule === 'optional-int') {
       if (value !== undefined && !Number.isInteger(value)) return { ok: false, why: `${key} must be an integer` };
     } else if (rule === 'int-1-4') {
@@ -48,6 +59,9 @@ export function validateControlPayload(action, payload) {
   }
   for (const key of Object.keys(payload)) {
     if (!(key in rules)) return { ok: false, why: `unsupported payload key: ${key}` };
+  }
+  if (action === 'answer' && ((payload.optionId !== undefined) === (payload.answers !== undefined))) {
+    return { ok: false, why: 'answer needs exactly one of optionId or answers' };
   }
   return { ok: true };
 }

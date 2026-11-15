@@ -1,5 +1,6 @@
 // Prompt lifecycle, including failed and cancelled calls. Kept separate from
 // orchestration so metrics and visible turns share exactly one lifecycle.
+import { assertNativeOutcome } from './native-outcome.mjs';
 export function createTurnRunner({ st, tracker, report, request, config, metrics, getTransport }) {
   function recordTurn(label, result) {
     const text = result.text ?? '';
@@ -19,6 +20,7 @@ export function createTurnRunner({ st, tracker, report, request, config, metrics
     }
   }
   async function runPromptTurn({ label, text, phase = 'other' }) {
+    await st.beforeForegroundTurn?.(); // steering gate: no overlapping session/prompt
     st.promptInFlight = true;
     const measured = metrics.begin(label, phase);
     const turn = st.activeTurn = { label, text: '', chars: 0, metricsId: measured.id };
@@ -30,7 +32,9 @@ export function createTurnRunner({ st, tracker, report, request, config, metrics
       const promise = getTransport().conn.prompt({ sessionId: st.sessionId, prompt: [{ type: 'text', text }] });
       st.promptPromise = promise;
       const response = await promise;
+      await st.flushNativeEvents?.();
       if (st.finalized) throw new Error('Prompt settled after finalization');
+      assertNativeOutcome(turn);
       stopReason = st.lastStopReason = response.stopReason ?? null;
       const measuredTurn = metrics.finish(measured.id, response);
       return { ...response, text: turn.text, chars: turn.chars, metrics: measuredTurn };
@@ -43,6 +47,8 @@ export function createTurnRunner({ st, tracker, report, request, config, metrics
       st.promptPromise = null;
       st.promptInFlight = false;
       st.activeTurn = null;
+      // Steered/queued controls settle against the turn that owned them.
+      st.onForegroundTurnSettled?.({ label, stopReason, chars: turn.chars, ok: stopReason === 'end_turn' });
       if (!st.finalized) {
         tracker.state.metrics = metrics.snapshot(report.firstPassReview);
         tracker.setCurrentTurn(null);

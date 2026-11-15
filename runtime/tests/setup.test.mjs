@@ -8,7 +8,7 @@ import { inspectSetup, installSetup, parseArgs } from '../../scripts/setup.mjs';
 function fixture(root = mkdtempSync(join(tmpdir(), 'zcode 通用版 '))) {
   const runtime = join(root, 'runtime');
   mkdirSync(join(runtime, 'node_modules', 'zcode-acp-server'), { recursive: true });
-  writeFileSync(join(runtime, 'node_modules', 'zcode-acp-server', 'package.json'), '{"version":"0.72.0"}');
+  writeFileSync(join(runtime, 'node_modules', 'zcode-acp-server', 'package.json'), '{"version":"0.85.3"}');
   writeFileSync(join(root, 'SKILL.md'), 'canonical source');
   for (const name of ['zcode.cjs', 'provider.json', 'taskkill.exe']) writeFileSync(join(root, name), 'dummy');
   writeFileSync(join(runtime, 'config.json'), JSON.stringify({ zcodeBin: join(root, 'zcode.cjs'),
@@ -63,7 +63,7 @@ test('argument validation and invalid dependency stop before writes', () => {
   assert.throws(() => parseArgs(['--check', '--check']), /重复/);
   const host = fixture();
   writeFileSync(join(host.runtime, 'node_modules', 'zcode-acp-server', 'package.json'), '{"version":"0.47.0"}');
-  assert.throws(() => inspectSetup({}, host), /0.72.0/);
+  assert.throws(() => inspectSetup({}, host), /0.85.3/);
   assert.equal(existsSync(join(host.home, '.agents')), false);
   assert.equal(readdirSync(host.runtime).some(name => name.includes('backup-')), false);
 });

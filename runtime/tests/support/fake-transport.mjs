@@ -8,12 +8,22 @@ const DISABLED_POLICY = {
 
 export class FakeTransport {
   constructor({ policy = DISABLED_POLICY, script = [], workflowRuns = [], ipcHandlers = {},
-    modeReadback = null, sessionId = "sess-1" } = {}) {
+    modeReadback = null, modelReadback = null, sessionId = "sess-1",
+    steeringMeta = null, steeringHandler = null } = {}) {
     this.policy = policy;
     this.script = script;
     this.workflowRuns = workflowRuns;
     this.ipcHandlers = ipcHandlers;
     this.modeReadback = modeReadback;
+    // Native readback for the model option: the server resolves the pinned
+    // bundled provider to its registry alias, so tests can replay that.
+    this.modelReadback = modelReadback;
+    // Real 0.85.3 shape: InitializeResponse._meta.steering = { supported: true,
+    // timings: ["now","next"] }; null keeps the pre-extension bridge.
+    this.steeringMeta = steeringMeta;
+    this.steeringHandler = steeringHandler;
+    this.steeringCalls = [];
+    this.sessionId = sessionId;
     this.handlers = {};
     this.pid = 999_999;
     this.child = { exitCode: null };
@@ -29,17 +39,31 @@ export class FakeTransport {
     this.conn = {
       initialize: async () => {
         this.initializeCalls += 1;
-        return { agentInfo: { name: 'zcode-acp-server', version: '0.72.0' } };
+        return {
+          agentInfo: { name: 'zcode-acp-server', version: '0.85.3' },
+          ...(this.steeringMeta ? { _meta: { steering: this.steeringMeta } } : {}),
+        };
       },
       newSession: async () => ({ sessionId, modes: [], configOptions: [] }),
       resumeSession: async () => ({ modes: [], configOptions: [] }),
       setSessionConfigOption: async ({ configId, value }) => ({
         configOptions: [{
           id: configId,
-          currentValue: configId === 'mode' && this.modeReadback !== null ? this.modeReadback : value,
+          currentValue: configId === 'mode' && this.modeReadback !== null ? this.modeReadback
+            : configId === 'model' && this.modelReadback !== null ? this.modelReadback : value,
         }],
       }),
       extMethod: async method => ({ method }),
+      request: async (method, params) => {
+        if (method === '_session/steering') {
+          this.steeringCalls.push(params);
+          if (typeof this.steeringHandler !== 'function') {
+            throw new Error('fake has no steering handler');
+          }
+          return this.steeringHandler(params);
+        }
+        return { method };
+      },
       cancel: async () => { this.cancelCount += 1; },
       prompt: params => {
         if (this.inFlight > 0) return Promise.reject(new Error('concurrent prompt detected'));
@@ -74,6 +98,7 @@ export class FakeTransport {
   emitEvent(message) { this.onEventSink?.(message); }
   emitUpdate(update) { this.handlers.sessionUpdate?.(update); }
   emitPermission(p) { return this.handlers.requestPermission(p); }
+  emitTurnState(running) { this.handlers.turnState?.({ sessionId: this.sessionId, running }); }
   resolvePrompt(text, stopReason = 'end_turn') {
     const entry = this.pending.find(e => this.promptLog[e.index] === text) ?? this.pending[0];
     if (entry) entry.resolve({ stopReason });
@@ -82,6 +107,7 @@ export class FakeTransport {
     this.ipcOps.push([op, payload]);
     const handler = this.ipcHandlers[op]
       ?? {
+        'ping': async () => ({ pong: true }),
         'bind-run': async () => ({ bound: [] }),
         'workflow-status': async () => ({ runs: this.workflowRuns }),
         'workflow-stop': async ({ runId }) => ({ stopped: runId, run: { runId, status: 'cancelled' } }),

@@ -1,6 +1,6 @@
 // bridge.mjs — the spawned ACP bridge adapter (child of run-task.mjs).
 //
-// Upstream zcode-acp-server 0.72.0 owns transport and inference end to end;
+// Upstream zcode-acp-server 0.85.3 owns transport and inference end to end;
 // this file adds ONLY the seams a headless controller needs, using upstream's
 // own modules rather than reimplementing v4 business rules:
 //   1. effective-policy proof: the isolated XDG_CONFIG_HOME config read back
@@ -21,6 +21,7 @@ import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { installNativeGuards } from './native-guards.mjs';
+import { existingCodingPlanResponder } from './credential-source.mjs';
 
 const PKG = 'zcode-acp-server/dist';
 
@@ -307,9 +308,26 @@ export async function bridgeMain({ env = process.env, send = m => process.send?.
   const getServer = captureServerViaInitialize(serverMod.ZcodeAcpServer);
   const backendMod = await import(`${upstreamRoot}/backend/client.js`);
   const adapterMod = await import(`${upstreamRoot}/interaction/adapter.js`);
+  // Native session/event sids are BACKEND ids; the runner only knows the ACP
+  // alias (session/new's random acpSid). Map via the captured server's own
+  // reverse index (resolveAcpSid) plus its alias list so steer lifecycle
+  // events reach the session that actually steered.
+  const acpAliasesForNativeSession = nativeSid => {
+    const server = getServer();
+    if (!server || typeof nativeSid !== 'string' || !nativeSid) return [];
+    const primary = typeof server.resolveAcpSid === 'function'
+      ? server.resolveAcpSid(nativeSid) : null;
+    if (!primary) return [];
+    return typeof server.sessionAliases === 'function' ? server.sessionAliases(primary) : [primary];
+  };
+  const bindings = JSON.parse(env.CODEX_ZCODE_BINDINGS ?? '{}');
+  const utils = await import(`${upstreamRoot}/utils.js`);
   installNativeGuards(backendMod.ZcodeBackend, {
-    send, request: JSON.parse(env.CODEX_ZCODE_BINDINGS ?? '{}'),
+    send, request: bindings,
+    answerProviderAuth: bindings.credentialSource === 'existing-coding-plan-key'
+      ? existingCodingPlanResponder(utils.ZCODE_CREDS_PATH) : null,
     isPermissionRequest: adapterMod.isPermissionRequest,
+    mapNativeSession: acpAliasesForNativeSession,
   });
   const workflow = {
     conversationRuns: workflowMod.conversationRuns,

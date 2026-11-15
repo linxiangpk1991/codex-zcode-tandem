@@ -199,6 +199,15 @@ test('control CLI writes a bound command file and returns its id; status needs n
   assert.equal(written.invocationId, invocationId);
   assert.deepEqual(written.payload, { message: 'do more' });
 
+  // Live-steer timing is opt-in per command: now injects, next queues.
+  const steerNext = runControl(['--progress', progressFile, '--action', 'steer',
+    '--message', 'queue it', '--priority', 'next']);
+  assert.equal(steerNext.ok, true);
+  assert.deepEqual(readJsonFile(steerNext.inboxFile).payload, { message: 'queue it', priority: 'next' });
+  const steerBadPriority = runControl(['--progress', progressFile, '--action', 'steer',
+    '--message', 'x', '--priority', 'later'], { expectOk: false });
+  assert.match(JSON.parse(steerBadPriority.stderr).error, /priority must be "now" or "next"/);
+
   const answer = runControl(['--progress', progressFile, '--action', 'answer',
     '--interactionId', 'q1', '--optionId', 'red']);
   assert.equal(answer.ok, true);

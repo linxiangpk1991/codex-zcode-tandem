@@ -15,6 +15,6 @@ jobs:
         with:
           node-version: '24.19.0'
       - name: Install locked adapter dependencies
-        run: npm.cmd ci --prefix runtime --omit=optional --ignore-scripts --no-audit --no-fund
+        run: npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
       - name: Run offline tests
         run: npm.cmd test --prefix runtime

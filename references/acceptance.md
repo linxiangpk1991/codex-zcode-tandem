@@ -101,3 +101,10 @@ A real GLM-5.3/max fixture first failed the review gate: it summarized the code 
 Independent source review found a false block from superseded workflow history and a missing early directory-path rejection. Both were corrected with regression coverage. Execution and delivery share the completion rules in policy.mjs.
 
 Correction review also identified the waitForBackground-only workflow trigger; it now receives mandatory review. That review session executed an unapproved read-only grep command: the observer marked it needs_attention and cleaned up its process. Its findings informed the correction, but the session is not counted as a passing read-only-tool-policy check. Git readback confirmed no reviewer writes.
+
+
+## 1.6 acceptance — 2026-11-16
+
+The shared runtime passed 219 local Windows regressions before public synchronization. Real GLM-5.3/max checks on ZCode Desktop 3.18.2.10443 / CLI 0.17.1 / ACP 0.85.3 covered a delivered correction, four seeded review findings, one repair, actual passing checks and a second fresh review. A separate native form preserved a single choice and two multi-select values. Final concurrency corrections passed 78 affected checks and the final full suite; independent source review confirmed the correction. These overlapping counts are not additive.
+
+Native inference was exercised using an explicitly selected existing Coding Plan key. Default desktop OAuth requires a valid user login; a successful configuration probe alone does not validate inference. No personal configuration or credentials are distributed. Screenshot checks prove local file provenance, not visual acceptance. There is no claim of a 90-minute endurance run or cross-platform support. Public installation and Windows CI are validated separately for the release candidate.
