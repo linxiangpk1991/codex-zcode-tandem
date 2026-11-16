@@ -25,3 +25,7 @@ Read [architecture](references/project-map.md) for module ownership. The project
 PR 说明问题、变化后的行为、实际执行的检查和剩余限制。不要提交本机配置、日志、环境文件、凭据、完整会话、私人源码或安装指针。公开版技能名与个人变体保持独立。
 
 模块责任见[项目结构](references/project-map.zh-CN.md)。项目采用 MIT，贡献也按同一许可证提交。生图资产来源见[图片说明](assets/README.md)。
+
+## Descriptions and documentation / 描述与文档
+
+Keep English and Chinese capability summaries aligned with the tested release. See [project description maintenance](docs/discoverability.md) for fact ownership, GitHub topics and reproducible discovery checks. 中英文描述应同步维护，版本与能力以实际验证为准。

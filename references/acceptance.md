@@ -1,4 +1,18 @@
-# 1.5 acceptance — 2026-10-17
+# Verification and known limits
+
+Current release evidence is shown first. Older version numbers and behavior below are historical, not the current compatibility claim.
+
+## 1.6 acceptance — 2026-11-16
+
+The shared runtime passed 219 local Windows regressions before public synchronization. Real GLM-5.3/max checks on ZCode Desktop 3.18.2.10443 / CLI 0.17.1 / ACP 0.85.3 covered a delivered correction, four seeded review findings, one repair, actual passing checks and a second fresh review. A separate native form preserved a single choice and two multi-select values. Final concurrency corrections passed 78 affected checks and the final full suite; independent source review confirmed the correction. These overlapping counts are not additive.
+
+Native inference was exercised using an explicitly selected existing Coding Plan key. Default desktop OAuth requires a valid user login; a successful configuration probe alone does not validate inference. No personal configuration or credentials are distributed. Screenshot checks prove local file provenance, not visual acceptance. There is no claim of a 90-minute endurance run or cross-platform support. Public installation and Windows CI are validated separately for the release candidate.
+
+Public v1.6.0 Windows CI passed **220 tests**: [exact release candidate run](https://github.com/linxiangpk1991/codex-zcode-tandem/actions/runs/43776107109). The published Windows ZIP was installed in a separate skills directory and downloaded again for checksum verification. [Release and downloads](https://github.com/linxiangpk1991/codex-zcode-tandem/releases/tag/v1.6.0).
+
+## Historical verification records
+
+## 1.5 acceptance — 2026-10-17
 
 - Public Windows regression: 181 tests passed, including the separate public installer behavior. Node 24.19.0 and ACP 0.72.0 remain pinned.
 - The shared runtime was first qualified in the private 3.6 candidate against ZCode Desktop 3.15.3.8237 / CLI 0.16.9 and GLM-5.3/max/build. In a disposable project with a deliberately broken clamp upper bound, default independent review found the defect, the original developer fixed it, the authorized Node test passed, and a second fresh reviewer found no remaining issue. Only then did delivery become ready_for_controller_review with exit 0. All three owned native processes were cleaned up.
@@ -8,7 +22,6 @@
 
 Prepared plans and existing receipts are trusted caller inputs, not signed attestations. Review can miss bugs. Visual, production and business acceptance remain outside this fixture. Local raw evidence stays in ignored work directories; the repository contains only this summary.
 
-# Verification and known limits
 
 ## 1.4 validation — 2026-10-16
 
@@ -101,10 +114,3 @@ A real GLM-5.3/max fixture first failed the review gate: it summarized the code 
 Independent source review found a false block from superseded workflow history and a missing early directory-path rejection. Both were corrected with regression coverage. Execution and delivery share the completion rules in policy.mjs.
 
 Correction review also identified the waitForBackground-only workflow trigger; it now receives mandatory review. That review session executed an unapproved read-only grep command: the observer marked it needs_attention and cleaned up its process. Its findings informed the correction, but the session is not counted as a passing read-only-tool-policy check. Git readback confirmed no reviewer writes.
-
-
-## 1.6 acceptance — 2026-11-16
-
-The shared runtime passed 219 local Windows regressions before public synchronization. Real GLM-5.3/max checks on ZCode Desktop 3.18.2.10443 / CLI 0.17.1 / ACP 0.85.3 covered a delivered correction, four seeded review findings, one repair, actual passing checks and a second fresh review. A separate native form preserved a single choice and two multi-select values. Final concurrency corrections passed 78 affected checks and the final full suite; independent source review confirmed the correction. These overlapping counts are not additive.
-
-Native inference was exercised using an explicitly selected existing Coding Plan key. Default desktop OAuth requires a valid user login; a successful configuration probe alone does not validate inference. No personal configuration or credentials are distributed. Screenshot checks prove local file provenance, not visual acceptance. There is no claim of a 90-minute endurance run or cross-platform support. Public installation and Windows CI are validated separately for the release candidate.

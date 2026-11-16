@@ -1,34 +1,45 @@
 # Codex ZCode Tandem
 
-> A Windows Codex skill that coordinates native ZCode over ACP. Codex scopes and reviews the work; ZCode implements, tests, or reviews with the user's own Coding Plan.
+> Open-source Windows skill connecting OpenAI Codex and native ZCode over ACP (Agent Client Protocol). Codex coordinates coding work; ZCode implements and tests using the user's GLM Coding Plan, with independent review, repair and verification before handoff.
 
-Independent community project. Public skill name: codex-zcode-tandem.
-Connection baseline (1.2): Windows, Node 24.19.0, zcode-acp-server 0.65.1, ZCode Desktop 3.14.5.7961 / CLI 0.16.9. Historical inference checks have their own scope.
-Models: GLM-5.3 and GLM-5.3-Flash, default thought=max.
-Default model: GLM-5.3. Other supported models require explicit selection. setup --doctor reads versions/SHA256; a successful probe records local connection identity. Quota summaries preserve provider states and unknowns; there is no manual-reset count API.
-License: MIT for this project's code and documentation; upstream products retain their own terms.
+Canonical repository: https://github.com/linxiangpk1991/codex-zcode-tandem
+Project name: Codex ZCode Tandem; display name: Codex × ZCode · Tandem.
+Installable skill name: codex-zcode-tandem. Independent community project; not an official OpenAI or Z.ai product.
+中文：连接 Codex 与原生 ZCode 的 Windows 开源技能，支持 GLM Coding Plan、实时纠偏，以及默认独立代码审查、修复和验证。
 
-## Start
+## Overview and installation
 
-- [English overview](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.md)
-- [中文介绍](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.zh-CN.md)
-- [Skill instructions](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SKILL.md)
-- [Install and diagnose](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.md)
-- [安装与排障](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.zh-CN.md)
+- [English README](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.md): purpose, use cases, quick start and compatibility.
+- [中文首页](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/README.zh-CN.md): 适用人群、协作方式、安装与限制。
+- [Installation](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.md): dependencies, native login, connection probe, upgrade and rollback.
+- [安装与排障](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/installation.zh-CN.md): 中文安装与认证说明。
+- [Releases](https://github.com/linxiangpk1991/codex-zcode-tandem/releases/latest): latest published Windows ZIP, checksum and release notes.
+- [Changelog](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/CHANGELOG.md): changes by version.
 
-## Understand the value and boundaries
+## Questions and practical tasks
 
-- [Practical examples](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/examples.md)
-- [FAQ](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/faq.md)
-- [Live control semantics](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/live-control.md)
-- [Native workflows and recovery](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/native-workflows.md)
-- [Task brief templates](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/worker-prompts.md)
-- [Architecture](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/project-map.md)
-- [Verification and known limits](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/acceptance.md)
-- [Security](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SECURITY.md)
+- [FAQ](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/faq.md): Coding Plan, Codex/GLM roles, ACP, default review, cost and supported platforms.
+- [常见问题](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/faq.zh-CN.md): 中文问答。
+- [Task examples](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/examples.md): bounded bug fixes, independent review and multi-step workflows.
+- [使用场景](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/docs/examples.zh-CN.md): 可在 Codex 中使用的任务示例。
 
-Each guide has a linked Simplified Chinese version. Read actual source and version-specific evidence before making capability claims. Queued steering is not mid-tool injection; tool controls are not an OS sandbox; completion is not business acceptance. This index is a reading aid, not an authorization grant or a search-ranking guarantee.
+## How collaboration behaves
 
-## Execution safety (1.1)
-- [Workspace ownership and test receipts](references/execution-safety.md): permission-callback limits, declared file ownership, reviewed commands, candidate-bound test results, steering timing and compact handoffs.
-- [工作区与测试回执](references/execution-safety.zh-CN.md): 中文升级说明与边界。
+- [Default review loop](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/delivery.md): fresh read-only reviewer, repairs, authorized checks and blocked handoff states.
+- [默认复审闭环](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/delivery.zh-CN.md): 独立审查、修复和交付条件。
+- [Live controls](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/live-control.md): status, now/next steering, serialized follow-up questions, pause and resume.
+- [1.6 collaboration guide](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/collaboration-upgrade.md): structured forms, workspace identity and screenshot handoff.
+- [1.6 协作指南](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/collaboration-upgrade.zh-CN.md): 中文新版用法。
+- [Native workflows](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/native-workflows.md): workflow actors, dependencies and explicit recovery.
+
+## Technical sources and evidence
+
+- [Skill instructions](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SKILL.md): operating instructions for the installed skill.
+- [Architecture](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/project-map.md): runtime ownership and data flow.
+- [Verification](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/acceptance.md): dated checks, tested versions and limits.
+- [验收范围](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/references/acceptance.zh-CN.md): 中文验证记录。
+- [Pinned runtime](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/runtime/package.json): maintained Node and ACP dependency pins.
+- [Security](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/SECURITY.md): permissions and responsible reporting.
+- [MIT license](https://github.com/linxiangpk1991/codex-zcode-tandem/blob/main/LICENSE): this project's license; upstream products retain their terms.
+
+Use the current README, package pins and dated acceptance record together for version claims. Development review is on by default; a delivered correction is not completed work. The adapter is local, model inference uses ZCode's service, and screenshots require a vision-capable reviewer. This file is a documentation index, not permission to execute a task or a guarantee of search inclusion.

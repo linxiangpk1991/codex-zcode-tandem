@@ -1,43 +1,59 @@
-# Codex × ZCode · Tandem
+# Codex ZCode Tandem — a Codex + ZCode collaboration skill
 
-**Codex plans the work. ZCode builds it. You stay in the conversation.**
+**Let Codex coordinate. Let ZCode implement, test and review.**
 
-[简体中文](README.zh-CN.md) · [Install](references/installation.md) · [Examples](docs/examples.md) · [FAQ](docs/faq.md)
+Codex ZCode Tandem is an open-source **Windows skill that connects OpenAI Codex to native ZCode through ACP (Agent Client Protocol)**. Delegate coding tasks to ZCode using your own **GLM Coding Plan**, follow progress, and send corrections without copying whole conversations between tools. Development tasks go through independent code review, repairs and verification before returning to Codex for final review.
 
-![Codex and ZCode working together, represented by two linked teal and terracotta forms](assets/cover.png)
+[简体中文](README.zh-CN.md) · [Install](references/installation.md) · [Download the latest release](https://github.com/linxiangpk1991/codex-zcode-tandem/releases/latest) · [Examples](docs/examples.md) · [FAQ](docs/faq.md)
 
-Tandem is a **Windows Codex skill for working with native ZCode over ACP (Agent Client Protocol)**. Codex hands off a defined task, follows its progress, asks questions, and sends corrections in the same ZCode session. ZCode uses your own Coding Plan to do the implementation and testing; Codex reviews the result.
+![Codex ZCode Tandem: Codex coordinates development and native ZCode implements and tests](assets/cover.png)
 
-If you already use both tools and keep copying requirements and results between them, this project gives that handoff a repeatable shape.
+**Windows · Node 24.19.0 · ACP 0.85.3 · MIT license · English / 简体中文**
 
-**Windows · Node 24.19.0 · ACP 0.85.3 · MIT**
+## When should you use it?
 
-## What it helps with
+Tandem is for developers who already use Codex and ZCode and want them to work on the same task. It is useful when you want to:
 
-**New in 1.6:** ACP 0.85.3 adds native `now`/`next` steering, multi-question forms, worktree identity checks and screenshot handoff with file hashes. The default independent review loop stays on; a delivered correction is never treated as proof that the code is finished. [How to use the new capabilities](references/collaboration-upgrade.md)
+- **Delegate a bounded feature or bug fix.** Codex defines the files, requirements and checks; ZCode does the implementation using your existing Coding Plan.
+- **Correct a task while it is running.** Read progress, ask a follow-up question or send a revised requirement to the same ZCode session.
+- **Review before handing work back.** A fresh, read-only ZCode session checks the candidate. Findings go back for repair, followed by the authorized checks and another review.
+- **Keep a longer task understandable.** Follow saved sessions, native workflow state and structured results when work spans several steps.
 
-**New in 1.5:** Every development handoff now runs independent review automatically: a fresh read-only session reviews the candidate, the original session repairs findings, authorized tests run, and a new session reviews the correction. Up to two repair rounds; unresolved findings or missing checks block delivery. No workflow example or opt-in flag is needed. [Default review loop](references/delivery.md)
+For a small edit, staying in Codex may be simpler. Tandem helps when delegation and follow-up are worth keeping track of. There are no measured speed or token-saving claims.
 
-**New in 1.4:** ACP 0.72.0 support for ZCode 3.15.3, actual per-turn usage and stage timing, stricter workflow argument/model/concurrency bindings, and a reusable independent-review workflow. Late responses cannot overwrite a finalized result. [Usage and coverage](references/metrics.md) · [Native review workflow](references/native-workflows.md)
+## How do Codex and ZCode work together?
 
-**New in 1.3:** implementation tasks now finish with first-pass review and repair. Handoff readiness is separate from model completion; missing tests, stale inputs and late corrections stay visible. Functional browser checks and visual acceptance have different owners. Callers must handle exit code 4. [How delivery works](references/delivery.md)
+Codex remains the controller: it prepares the task, owns the allowed scope and decides whether the result meets your request. Native ZCode is the coding worker. The local ACP adapter connects their sessions and records progress, questions, corrections and delivery status.
 
-**New in 1.1:** file ownership and reviewed command grants, source-bound test receipts, separate queue/execution timing, visible startup fallback warnings, and a compact handoff. Existing edit/execute requests need a `workspace` declaration; read the [upgrade guide](references/execution-safety.md). Model completion and test acceptance are reported separately.
+```mermaid
+flowchart LR
+  U["You: goal and feedback"] --> C["Codex: scope and final review"]
+  C -->|"Task via ACP"| Z["ZCode: implement and test"]
+  Z --> R["Separate read-only reviewer"]
+  R -->|"Findings"| Z
+  R --> V["Authorized checks and fresh re-review"]
+  V -->|"Ready handoff"| C
+  C -->|"Corrections: now / next"| Z
+```
 
-**New in 1.2:** read-only native identity checks include Desktop/CLI/ACP versions and SHA256, with a local baseline recorded only by a successful connection probe. Quota summaries show actual GLM windows and reset times while preserving unavailable states. Windows diagnostics give tool paths; the upstream POSIX login-shell fallback remains visible.
+**Independent review is on by default for development tasks.** It uses a fresh native session rather than the developer's own summary. The runner allows up to two repair rounds; unresolved findings or missing verification block a ready handoff. Read-only questions and connection probes skip this loop. [Review and verification details](references/delivery.md)
 
-- **A feature with clear boundaries.** Let ZCode implement and test one module while Codex keeps track of the broader requirement.
-- **A task that needs course corrections.** Inspect progress, ask what is blocking the work, or queue a changed requirement without starting the conversation over.
-- **A second opinion on a change.** Start a separate ZCode review session with the original requirement and actual candidate.
-- **Work with several dependent parts.** Use native workflow actors, joins, saved node results, and explicit resume when those capabilities are useful.
+| During a task | What Tandem does |
+| --- | --- |
+| Check progress | Reads a local status snapshot without another model call. |
+| Change a requirement | Uses native `now` / `next` steering when available; reports queued or delivered state separately from completed work. |
+| Ask a follow-up | Sends a separate follow-up turn when the foreground session can process it. |
+| Answer ZCode | Validates the pending question ID and its single-choice, multiple-choice or supported form answers. |
+| Resume work | Reads saved session and workflow state before continuing; checks workspace identity. |
+| Hand over screenshots | Binds image files to the candidate; leaves visual acceptance to a vision-capable controller. |
 
-For a one-line edit, a direct edit in Codex may be simpler. Tandem is most useful when a handoff is worth keeping track of.
+A delivered correction does not prove that it has been implemented. Running background actors require an explicit workflow amendment or pause/readback/resume. See [live controls](references/live-control.md) and the [1.6 collaboration guide](references/collaboration-upgrade.md).
 
-## Start here
+## Quick start on Windows
 
-You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git, and **Node 24.19.0**. The current connection baseline is ZCode Desktop **3.18.2.10443** / CLI **0.17.1**. Other identities need their own connection and task checks.
+You need Codex with skills support, a separately installed and signed-in [ZCode](https://zcode.z.ai/), Git and **Node 24.19.0**. You supply your own ZCode account and model access.
 
-In PowerShell, choose a directory you will keep, then run:
+In PowerShell, choose a directory you will keep:
 
 ```powershell
 git clone https://github.com/linxiangpk1991/codex-zcode-tandem.git
@@ -47,80 +63,56 @@ npm.cmd ci --prefix runtime --ignore-scripts --no-audit --no-fund
 node.exe scripts/setup.mjs
 ```
 
-If ZCode is installed in a custom location:
+The installer creates `~/.agents/skills/codex-zcode-tandem` and points it to this checkout. Keep the checkout in place. For a custom ZCode installation, pass its native entry:
 
 ```powershell
 node.exe scripts/setup.mjs --zcode-bin 'D:/Apps/ZCode/resources/glm/zcode.cjs'
 ```
 
-The installer creates a small skill entry at `~/.agents/skills/codex-zcode-tandem`. It points to this checkout, so keep the checkout in place. Reload skills or open a new Codex chat, then try:
+Open a new Codex chat or reload skills, then try a read-only task:
 
-> $codex-zcode-tandem Ask ZCode to inspect the input validation in this project. Read only. Identify one reproducible bug and the smallest useful test. Review the evidence before changing code.
+> $codex-zcode-tandem Ask ZCode to inspect this project's input validation. Read only. Identify one reproducible bug and the smallest useful test. Review the evidence before changing code.
 
-[The installation guide](references/installation.md) covers the connection probe, existing installations, custom paths, updates, and rollback. You use your own ZCode account; this repository includes no subscription or login information.
+For a development task:
 
-## How the collaboration works
+> $codex-zcode-tandem Delegate the CSV export date-boundary bug to ZCode. Identify the affected files and existing test command first. Keep the change within that scope, run independent review and repair, and verify it before handing the result back. Do not publish or deploy.
 
-```mermaid
-flowchart LR
-  U["You: goal and feedback"] --> C["Codex: scope and review"]
-  C -->|"Task brief via ACP"| Z["Native ZCode: build and test"]
-  Z --> R["Fresh independent review"]
-  R -->|"Findings"| Z
-  R --> V["Authorized checks and fresh re-review"]
-  V -->|"Ready handoff"| C
-  C -->|"Queued feedback"| Z
-  Z --> F["Your working files"]
-  C -->|"Review diff and tests"| F
-```
+Prefer a ZIP? Use [Releases](https://github.com/linxiangpk1991/codex-zcode-tandem/releases/latest), extract it to a permanent directory, then follow the [installation guide](references/installation.md). It also covers connection checks, authentication, updates and rollback.
 
-| During a task | What actually happens |
-| --- | --- |
-| Check status | Read the local progress snapshot without a model call. |
-| Ask or steer | Queue a message for a safe foreground turn boundary, before the next planned phase. |
-| Answer a question | Reply to the exact pending question using one of its offered options. |
-| Pause | Cancel the foreground turn and stop the invocation's bound workflow. Completed writes remain. |
-| Resume | Read back the saved session and workflow state, then continue unfinished work. |
-| Change workflow concurrency | Set a bound run's limit from 1 to 4 and confirm the native event. |
-| Amend a workflow | Review the new script, bind the predecessor run, and check which nodes were reused. |
+## GLM Coding Plan, models and compatibility
 
-**Feedback is queued, not injected into a tool call already in progress.** A running background actor needs an explicit workflow amendment or a pause/readback/resume cycle to change its instructions. See [live control](references/live-control.md) and [native workflows](references/native-workflows.md).
+Tandem uses your native ZCode account; it does not turn Codex itself into a GLM client. Your selected Codex controller model stays in place. ZCode implementation and review default to **GLM-5.3** with `thought=max`; **GLM-5.3-Flash** is an explicit option for smaller tasks.
 
-Core implementation and independent review default to **GLM-5.3**; smaller tasks can use **GLM-5.3-Flash**. Both default to `thought=max`. Your selected Codex controller model stays unchanged.
+The **v1.6.0 tested baseline** is Windows, Node 24.19.0, ACP 0.85.3 and ZCode Desktop 3.18.2.10443 / CLI 0.17.1. Another installed version needs its own connection and task checks. macOS and Linux are not supported by the current launcher.
 
-## What you get
+Desktop authentication is the default. An existing Coding Plan key can be selected explicitly for compatibility. No credentials or subscription are bundled, and there is no automatic paid-provider fallback. [Authentication and setup](references/installation.md)
 
-A self-contained skill, an installer, a pinned ACP adapter, structured progress and results, and offline regression tests. There is no additional dashboard or hosted control service to operate. The local adapter calls the native ZCode engine; model inference still uses ZCode's service and your account.
+## What has been verified?
 
-The public skill name is **`codex-zcode-tandem`**. It has its own installation entry and does not replace a separately installed `zcode-native` skill. Public changes have their own Git history and versioning.
+The v1.6.0 public candidate passed **220 Windows CI tests**. The shared runtime also completed real GLM-5.3/max checks covering live correction, independent review, repair, authorized tests and a fresh review, plus structured form answers. The release ZIP was installed in a separate test directory and its published checksum was checked after download.
 
-## Know the limits
+[v1.6.0 CI result](https://github.com/linxiangpk1991/codex-zcode-tandem/actions/runs/43776107109) · [Verification scope and limitations](references/acceptance.md) · [Release notes](https://github.com/linxiangpk1991/codex-zcode-tandem/releases/tag/v1.6.0)
 
-Windows is the supported platform. macOS and Linux have not been validated and are rejected by the current launcher. Tool permission checks are **not an OS sandbox**. A resumed native session can omit workflow permission callbacks; observing tool input cannot undo an action.
+The adapter runs locally, but ZCode uses its service for inference. Tool permission checks are not an OS sandbox. Pausing does not undo completed writes, and a ready handoff is not production or business acceptance. Screenshots still need visual review; no cross-platform or 90-minute endurance result is claimed.
 
-A completion flag is evidence about a run, not proof that a feature works. Review the diff and relevant tests. A timeout, lost connection, or pause does not reverse file changes or unknown external effects. The configured 90-minute deadline is not a 90-minute endurance-test result.
+## Documentation
 
-There is no automatic paid-API fallback, account sharing, or machine-wide quota-resume watcher. See [verification and limitations](references/acceptance.md) and [security](SECURITY.md).
-
-## Read more
-
-| I want to… | English | 简体中文 |
+| Task | English | 简体中文 |
 | --- | --- | --- |
 | Install or troubleshoot | [Installation](references/installation.md) | [安装与排障](references/installation.zh-CN.md) |
-| Try realistic tasks | [Examples](docs/examples.md) | [使用场景](docs/examples.zh-CN.md) |
-| Follow and steer work | [Live control](references/live-control.md) | [实时控制](references/live-control.zh-CN.md) |
-| Use parallel work or recovery | [Workflows](references/native-workflows.md) | [原生工作流](references/native-workflows.zh-CN.md) |
-| Write a useful brief | [Task briefs](references/worker-prompts.md) | [委派模板](references/worker-prompts.zh-CN.md) |
-| Understand the code | [Architecture](references/project-map.md) | [项目结构](references/project-map.zh-CN.md) |
-| Check support and evidence | [Verification](references/acceptance.md) | [验收范围](references/acceptance.zh-CN.md) |
+| Try realistic coding tasks | [Examples](docs/examples.md) | [使用场景](docs/examples.zh-CN.md) |
+| Understand review and repair | [Default review loop](references/delivery.md) | [默认复审闭环](references/delivery.zh-CN.md) |
+| Send corrections and answer forms | [Collaboration guide](references/collaboration-upgrade.md) | [协作指南](references/collaboration-upgrade.zh-CN.md) |
+| Control or resume work | [Live controls](references/live-control.md) | [实时控制](references/live-control.zh-CN.md) |
+| Use native workflows | [Workflows](references/native-workflows.md) | [原生工作流](references/native-workflows.zh-CN.md) |
+| Prepare a task brief | [Task briefs](references/worker-prompts.md) | [委派模板](references/worker-prompts.zh-CN.md) |
+| Understand the implementation | [Architecture](references/project-map.md) | [项目结构](references/project-map.zh-CN.md) |
 | Find a quick answer | [FAQ](docs/faq.md) | [常见问题](docs/faq.zh-CN.md) |
 
-For assistants reading this repository, start with [llms.txt](llms.txt) for the documentation map and [SKILL.md](SKILL.md) for operating instructions. Neither file grants permission to act on another project.
+For assistants reading the repository, [llms.txt](llms.txt) is a documentation index; [SKILL.md](SKILL.md) contains the operating instructions. Version history belongs in the [changelog](CHANGELOG.md).
 
-## Contribute and license
+## Community and license
 
-Bug reports with a small reproducible case are welcome in English or Chinese. Read [contributing](CONTRIBUTING.md) before changing runtime behavior. Documentation corrections are useful too.
+This is an independent community project, not an official OpenAI or Z.ai integration. The public skill installs as **`codex-zcode-tandem`**, separately from a personal `zcode-native` installation.
 
-Tandem's code and documentation are [MIT licensed](LICENSE). ZCode and third-party dependencies retain their own terms. This is an independent community project, not an official OpenAI or Z.ai product.
-
-Built on [zcode-acp](https://github.com/william0wang/zcode-acp) and the native ZCode engine. [Changelog](CHANGELOG.md) · [Asset credits](assets/README.md)
+Bug reports and documentation corrections are welcome in English or Chinese. See [contributing](CONTRIBUTING.md), [security](SECURITY.md) and the [MIT license](LICENSE). Built on [zcode-acp](https://github.com/william0wang/zcode-acp) and native [ZCode](https://zcode.z.ai/); upstream products retain their own terms. [Artwork credits](assets/README.md)

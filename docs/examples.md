@@ -18,7 +18,7 @@ During the task:
 >
 > Keep the current error message. Only change how an empty value is recognized.
 
-The first message is a queued question; the second is queued steering. Neither can alter a tool call already running. Check the completion receipt before assuming a change was applied.
+The first message is a separate follow-up question. The second uses native now/next steering when available, with explicit queue fallback. Neither cancels or rewrites an already-running tool call. Check delivery and the resulting code before assuming a correction was applied.
 
 ## 2. Get an independent review
 
